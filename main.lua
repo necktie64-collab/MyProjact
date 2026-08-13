@@ -1,10 +1,10 @@
 --[[
     =============================================================================
-    Anime Defenders - Professional Dynamic Data Scraping & Auto-Detect System
+    Anime Defenders - Professional Multi-Tab Script with Dedicated Shop System
     =============================================================================
-    หัวข้อ: การทำระบบสแกนข้อมูลอัตโนมัติ (Dynamic Data Scraping / Reflection)
-    เป้าหมาย: ศึกษาเทคนิคของ Script Hub มืออาชีพที่ใช้วิธีสแกนหาชื่อแมพและชื่อตู้สุ่มจากในตัวเกมจริง
-             มาร่วมสร้างปุ่มเมนูให้อัตโนมัติ โดยไม่ต้องมานั่งพิมพ์แก้ไขโค้ดเองเมื่อมีแพตช์ใหม่
+    หัวข้อ: การสร้างหมวดหมู่ Shop & Item Store, การทำระบบ Auto Buy และการสั่งซื้อไอเทมในเกม
+    เป้าหมาย: เพิ่ม Tab "Shop" สำหรับเลือกซื้อไอเทม (Star Seeds, Trait Rerolls, Dice ฯลฯ)
+             พร้อมปุ่มกดซื้อทันที และสวิตช์ Auto Buy ไอเทมอัตโนมัติ
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -18,60 +18,29 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- =============================================================================
--- [2] ระบบสแกนข้อมูลอัตโนมัติจากในเกม (Dynamic Runtime Data Scraper)
+-- [2] โครงสร้างข้อมูลเกมและสินค้าในร้านค้า (Shop Items Data)
 -- =============================================================================
 
-local function getDynamicWorlds()
-    local worldsFound = {}
-    
-    -- 1. สแกนหาชื่อแมพจาก ReplicatedStorage หรือ Workspace
-    local worldsFolder = ReplicatedStorage:FindFirstChild("Worlds") or ReplicatedStorage:FindFirstChild("Maps") or Workspace:FindFirstChild("Worlds")
-    if worldsFolder then
-        for _, obj in ipairs(worldsFolder:GetChildren()) do
-            table.insert(worldsFound, obj.Name)
-        end
-    end
-    
-    -- หากสแกนไม่เจอ (เช่น โครงสร้างปิดซ่อนอยู่) ให้ใช้รายชื่อสำรองมาตรฐาน
-    if #worldsFound == 0 then
-        worldsFound = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater", "Portal World"}
-    end
-    
-    return worldsFound
-end
-
-local function getDynamicBanners()
-    local bannersFound = {}
-    
-    -- 1. สแกนหาชื่อตู้สุ่มจากโฟลเดอร์ Banners หรือ Summon UI ในเกม
-    local bannersFolder = ReplicatedStorage:FindFirstChild("Banners") or ReplicatedStorage:FindFirstChild("SummonBanners")
-    if bannersFolder then
-        for _, obj in ipairs(bannersFolder:GetChildren()) do
-            table.insert(bannersFound, obj.Name)
-        end
-    end
-    
-    -- หากสแกนไม่เจอ ให้ใช้รายชื่อตู้สุ่มมาตรฐานของเกม
-    if #bannersFound == 0 then
-        bannersFound = {
-            "Banner 1 (Limited)",
-            "Banner 2 (Limited)",
-            "Standard Banner",
-            "Wish Banner",
-            "Exclusive Banner",
-            "Event Banner"
-        }
-    end
-    
-    return bannersFound
-end
-
--- ดึงข้อมูลแบบอัตโนมัติเข้าสู่โครงสร้างหลัก
 local GameData = {
-    Worlds = getDynamicWorlds(),
+    Worlds = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater", "Portal World"},
     Acts = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
     Difficulties = {"Normal", "Hard", "Nightmare"},
-    Banners = getDynamicBanners(),
+    Banners = {"Banner 1 (Limited)", "Banner 2 (Limited)", "Standard Banner", "Wish Banner", "Exclusive Banner"},
+    
+    -- รายการไอเทมทั้งหมดในร้านค้าเกม Anime Defenders
+    ShopItems = {
+        "Star Seed", 
+        "Trait Reroll", 
+        "Risk Dice", 
+        "Frost Crystal", 
+        "Red Star", 
+        "Blue Star", 
+        "Green Star",
+        "EXP Boost (2x)"
+    },
+    
+    -- จำนวนที่สั่งซื้อต่อรอบ
+    Quantities = {"1", "5", "10", "50"},
     
     KeybindOptions = {
         {Name = "Right Ctrl", Key = Enum.KeyCode.RightControl},
@@ -87,12 +56,17 @@ local SystemState = {
     AutoSummon = false,
     AutoReplay = false,
     AutoLeaveOnDefeat = false,
+    AutoBuyShop = false, -- สวิตช์ซื้อของใน Shop อัตโนมัติ
 
-    SelectedWorld = GameData.Worlds[1] or "Windmill",
+    SelectedWorld = "Windmill",
     SelectedAct = "Act 1",
     SelectedDifficulty = "Normal",
-    SelectedBanner = GameData.Banners[1] or "Banner 1 (Limited)",
+    SelectedBanner = "Banner 1 (Limited)",
     SummonAmount = 10,
+    
+    -- ค่าสินค้าใน Shop ที่ผู้เล่นเลือก
+    SelectedShopItem = "Star Seed",
+    SelectedQuantity = 1,
     
     ToggleKey = Enum.KeyCode.RightControl,
     IsUIVisible = true,
@@ -121,8 +95,8 @@ ScreenGui.Parent = targetParent
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 490, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -245, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 510, 0, 390)
+MainFrame.Position = UDim2.new(0.5, -255, 0.5, -195)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -214,7 +188,7 @@ ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = MainFrame
 
 -- =============================================================================
--- [7] ระบบจัดการหน้า Tab
+-- [7] ระบบจัดการหน้า Tab (เพิ่ม Shop Tab 🛒)
 -- =============================================================================
 
 local Tabs = {}
@@ -272,8 +246,10 @@ local function createTab(tabName, tabIcon)
     return Page
 end
 
+-- สร้าง 4 Tab หลัก (รวม Shop Tab 🛒)
 local StageTab    = createTab("Farm & Stage", "⚔️")
 local SummonTab   = createTab("Summon", "🎯")
+local ShopTab     = createTab("Shop", "🛒")
 local SettingsTab = createTab("Settings", "⚙️")
 
 Tabs["Farm & Stage"].Visible = true
@@ -281,7 +257,7 @@ TabButtons["Farm & Stage"].BackgroundColor3 = Color3.fromRGB(99, 102, 241)
 TabButtons["Farm & Stage"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 -- =============================================================================
--- [8] Components (Option Selectors, Custom TextInputs & Toggles)
+-- [8] Components (Option Selectors, Buttons & Toggles)
 -- =============================================================================
 
 local function addSectionTitle(parentPage, text)
@@ -296,50 +272,21 @@ local function addSectionTitle(parentPage, text)
     Label.Parent = parentPage
 end
 
-local function addCustomInput(parentPage, title, placeholder, onFocusLost)
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 56)
-    Frame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
-    Frame.BorderSizePixel = 0
-    Frame.Parent = parentPage
+local function addActionButton(parentPage, text, onClick)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 40)
+    Btn.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+    Btn.Text = text
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.TextSize = 12
+    Btn.Font = Enum.Font.GothamBold
+    Btn.Parent = parentPage
 
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(0, 8)
-    Corner.Parent = Frame
+    Corner.Parent = Btn
 
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -16, 0, 16)
-    Label.Position = UDim2.new(0, 8, 0, 6)
-    Label.BackgroundTransparency = 1
-    Label.Text = title
-    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
-    Label.TextSize = 11
-    Label.Font = Enum.Font.GothamBold
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Frame
-
-    local InputBox = Instance.new("TextBox")
-    InputBox.Size = UDim2.new(1, -16, 0, 24)
-    InputBox.Position = UDim2.new(0, 8, 0, 24)
-    InputBox.BackgroundColor3 = Color3.fromRGB(36, 36, 50)
-    InputBox.Text = ""
-    InputBox.PlaceholderText = placeholder
-    InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    InputBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
-    InputBox.TextSize = 11
-    InputBox.Font = Enum.Font.GothamMedium
-    InputBox.ClearTextOnFocus = false
-    InputBox.Parent = Frame
-
-    local InputCorner = Instance.new("UICorner")
-    InputCorner.CornerRadius = UDim.new(0, 6)
-    InputCorner.Parent = InputBox
-
-    InputBox.FocusLost:Connect(function(enterPressed)
-        if InputBox.Text ~= "" then
-            onFocusLost(InputBox.Text)
-        end
-    end)
+    Btn.MouseButton1Click:Connect(onClick)
 end
 
 local function addOptionSelector(parentPage, title, optionsList, currentChoice, onSelect)
@@ -485,7 +432,8 @@ end
 -- [9] เติมเนื้อหาในแต่ละ Tab
 -- =============================================================================
 
-addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP (Auto-Scanned)")
+-- --- Farm & Stage Tab ---
+addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP")
 addOptionSelector(StageTab, "เลือกแมพ (World):", GameData.Worlds, SystemState.SelectedWorld, function(val)
     SystemState.SelectedWorld = val
 end)
@@ -504,29 +452,48 @@ addToggleCard(StageTab, "Auto Join Selected Stage", "ยิง ActionRemote ส�
 addToggleCard(StageTab, "Auto Farm Units", "ยิง ActionRemote สั่งวางยูนิตและสู้ในด่าน", "AutoFarm")
 
 -- --- Summon Tab ---
-addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION (Auto-Scanned)")
+addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION")
 addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", GameData.Banners, SystemState.SelectedBanner, function(val)
     SystemState.SelectedBanner = val
-end)
-
-addCustomInput(SummonTab, "✏️ พิมพ์ชื่อ Banner เอง (Custom Input):", "เช่น Special_Banner_Season2", function(text)
-    SystemState.SelectedBanner = text
 end)
 
 addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
 addToggleCard(SummonTab, "Auto Summon Units", "ยิง ActionRemote สั่งสุ่มยูนิตตามตู้ที่เลือก", "AutoSummon")
 
+-- --- 🛒 SHOP TAB (เพิ่มตามคำขอ!) ---
+addSectionTitle(ShopTab, "🛍️ SELECT SHOP ITEM TO BUY")
+addOptionSelector(ShopTab, "เลือกไอเทมในร้านค้า:", GameData.ShopItems, "Star Seed", function(val)
+    SystemState.SelectedShopItem = val
+    print("เลือกซื้อไอเทม: ", val)
+end)
+
+addOptionSelector(ShopTab, "เลือกจำนวนที่ต้องการซื้อ:", GameData.Quantities, "1", function(val)
+    SystemState.SelectedQuantity = tonumber(val) or 1
+    print("จำนวนที่ซื้อ: ", val)
+end)
+
+addSectionTitle(ShopTab, "🛒 SHOP ACTIONS & AUTOMATION")
+addActionButton(ShopTab, "🛒 สั่งซื้อไอเทมที่เลือกทันที (BUY NOW)", function()
+    pcall(function()
+        if ActionRemote then
+            ActionRemote:FireServer("BuyItem", {
+                Item = SystemState.SelectedShopItem,
+                Amount = SystemState.SelectedQuantity
+            })
+            print(string.format("[Shop Action]: Buying %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+        end
+    end)
+end)
+
+addToggleCard(ShopTab, "Auto Buy Selected Item", "สั่งซื้อไอเทมที่เลือกวนลูปอัตโนมัติ", "AutoBuyShop")
+
 -- --- Settings Tab ---
 addSectionTitle(SettingsTab, "⌨️ KEYBIND CONFIGURATION")
-
 local keyNames = {}
 for _, opt in ipairs(GameData.KeybindOptions) do table.insert(keyNames, opt.Name) end
-
 addOptionSelector(SettingsTab, "เลือกปุ่มคีย์ลัด ซ่อน/แสดง เมนู:", keyNames, "Right Ctrl", function(val)
     for _, opt in ipairs(GameData.KeybindOptions) do
-        if opt.Name == val then
-            SystemState.ToggleKey = opt.Key
-        end
+        if opt.Name == val then SystemState.ToggleKey = opt.Key end
     end
 end)
 
@@ -534,7 +501,7 @@ addSectionTitle(SettingsTab, "⚙️ SYSTEM SETTINGS")
 addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านเมื่อแพ้", "AutoLeaveOnDefeat")
 
 -- =============================================================================
--- [10] ลูปประมวลผลยิง ActionRemote
+-- [10] ลูปประมวลผลยิง ActionRemote (รวม Auto Buy Shop)
 -- =============================================================================
 
 task.spawn(function()
@@ -564,6 +531,19 @@ task.spawn(function()
             end)
         end
 
+        -- ลูป Auto Buy ไอเทมในร้านค้าอัตโนมัติ!
+        if SystemState.AutoBuyShop then
+            pcall(function()
+                if ActionRemote then
+                    ActionRemote:FireServer("BuyItem", {
+                        Item = SystemState.SelectedShopItem,
+                        Amount = SystemState.SelectedQuantity
+                    })
+                    print(string.format("[Auto Buy Shop]: Purchased %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+                end
+            end)
+        end
+
         if SystemState.AutoFarm then
             pcall(function()
                 if ActionRemote then
@@ -574,4 +554,4 @@ task.spawn(function()
     end
 end)
 
-print("Anime Defenders Auto-Scraper Script System Loaded!")
+print("Anime Defenders Script with Dedicated Shop Tab Loaded!")
