@@ -79,6 +79,11 @@ local ActionsFolder = ReplicatedStorage:WaitForChild("Actions", 5)
 local ActionEvent = ActionsFolder and ActionsFolder:WaitForChild("Action", 5)
 local RemotesFolder = ReplicatedStorage:WaitForChild("Remotes", 5)
 
+-- ✅ ยืนยันจาก Auto Tester: Invokable สำหรับซื้อ Gold Shop คือ oZriblu8k3h38
+-- ใช้ InvokeServer("Item", {itemName, qty}) ไม่ใช่ FireServer!
+local InvokablesFolder = ActionsFolder and ActionsFolder:FindFirstChild("Invokables")
+local ShopInvokable = InvokablesFolder and InvokablesFolder:FindFirstChild("oZriblu8k3h38")
+
 -- [5] ทำความสะอาด UI เก่าก่อนสร้างใหม่
 local existingUI = CoreGui:FindFirstChild("AnimeDefenders_RealUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_RealUI")
 if existingUI then existingUI:Destroy() end
@@ -477,18 +482,24 @@ end)
 
 addSectionTitle(ShopTab, "🛒 SHOP ACTIONS & AUTOMATION")
 addActionButton(ShopTab, "🛒 สั่งซื้อไอเทมที่เลือกทันที (BUY NOW)", function()
-    pcall(function()
-        -- ✅ ยืนยันจาก Spy: ActionEvent:FireServer("Item", {ชื่อไอเทม, จำนวน})
-        if ActionEvent then
-            ActionEvent:FireServer("Item", {
-                SystemState.SelectedShopItem,
-                SystemState.SelectedQuantity
-            })
-            print(string.format("[BUY NOW ✅]: %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
-        else
-            print("[BUY NOW ❌]: ไม่พบ ActionEvent!")
-        end
-    end)
+    -- ✅ ยืนยันจาก Auto Tester: ใช้ ShopInvokable:InvokeServer("Item", {itemName, qty})
+    if ShopInvokable then
+        task.spawn(function()
+            local ok, res = pcall(function()
+                return ShopInvokable:InvokeServer("Item", {
+                    SystemState.SelectedShopItem,
+                    SystemState.SelectedQuantity
+                })
+            end)
+            if ok then
+                print(string.format("[BUY NOW ✅]: %s x%d → %s", SystemState.SelectedShopItem, SystemState.SelectedQuantity, tostring(res)))
+            else
+                print("[BUY NOW ❌]: " .. tostring(res))
+            end
+        end)
+    else
+        print("[BUY NOW ❌]: ไม่พบ ShopInvokable (oZriblu8k3h38)")
+    end
 end)
 
 addToggleCard(ShopTab, "Auto Buy Selected Item", "สั่งซื้อไอเทมที่เลือกวนลูปอัตโนมัติ", "AutoBuyShop")
@@ -539,18 +550,27 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Buy Gold Shop (ยืนยัน Format จาก Spy แล้ว: "Item", {name, qty})
+        -- ✅ Auto Buy Gold Shop (InvokeServer ผ่าน oZriblu8k3h38 - ยืนยันจาก Tester ✅)
         if SystemState.AutoBuyShop then
-            pcall(function()
-                if ActionEvent then
-                    ActionEvent:FireServer("Item", {
+            if ShopInvokable then
+                local ok, res = pcall(function()
+                    return ShopInvokable:InvokeServer("Item", {
                         SystemState.SelectedShopItem,
                         SystemState.SelectedQuantity
                     })
-                    print(string.format("[Auto Buy ✅]: %s", SystemState.SelectedShopItem))
+                end)
+                if ok then
+                    print(string.format("[Auto Buy ✅]: %s → %s", SystemState.SelectedShopItem, tostring(res)))
+                else
+                    print("[Auto Buy ❌]: " .. tostring(res))
+                    -- ถ้า error หยุด auto buy เพื่อป้องกันสแปม (stock หมด หรือไม่มี Gold)
+                    SystemState.AutoBuyShop = false
                 end
-            end)
-            -- หยุดพักหลังซื้อ 3 วินาที ป้องกัน rate-limit
+            else
+                print("[Auto Buy ❌]: ไม่พบ ShopInvokable")
+                SystemState.AutoBuyShop = false
+            end
+            -- หยุดพัก 3 วินาที ป้องกัน rate-limit
             task.wait(3)
         end
 
