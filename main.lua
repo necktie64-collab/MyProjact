@@ -74,7 +74,9 @@ local SystemState = {
 }
 
 -- [4] การเชื่อมต่อกับ Remote จริงของเกม Anime Defenders
-local ActionRemote = ReplicatedStorage:WaitForChild("Actions", 5) and ReplicatedStorage.Actions:WaitForChild("Action", 5)
+-- ActionEvent คือ RemoteEvent จริงที่ใช้ยิงคำสั่ง (ยืนยันจาก Action Spy ✅)
+local ActionsFolder = ReplicatedStorage:WaitForChild("Actions", 5)
+local ActionEvent = ActionsFolder and ActionsFolder:WaitForChild("Action", 5)
 local RemotesFolder = ReplicatedStorage:WaitForChild("Remotes", 5)
 
 -- [5] ทำความสะอาด UI เก่าก่อนสร้างใหม่
@@ -476,13 +478,15 @@ end)
 addSectionTitle(ShopTab, "🛒 SHOP ACTIONS & AUTOMATION")
 addActionButton(ShopTab, "🛒 สั่งซื้อไอเทมที่เลือกทันที (BUY NOW)", function()
     pcall(function()
-        if ActionRemote then
-            -- รูปแบบ Payload จริงที่ยืนยันจาก Action Spy: FireServer("Item", {ชื่อไอเทม, จำนวน})
-            ActionRemote:FireServer("Item", {
+        -- ✅ ยืนยันจาก Spy: ActionEvent:FireServer("Item", {ชื่อไอเทม, จำนวน})
+        if ActionEvent then
+            ActionEvent:FireServer("Item", {
                 SystemState.SelectedShopItem,
                 SystemState.SelectedQuantity
             })
             print(string.format("[BUY NOW ✅]: %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+        else
+            print("[BUY NOW ❌]: ไม่พบ ActionEvent!")
         end
     end)
 end)
@@ -508,12 +512,13 @@ addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่า�
 
 task.spawn(function()
     while true do
-        task.wait(1.5)
+        task.wait(2)
 
+        -- ✅ Auto Join Stage (รอยืนยัน Action name ที่ถูกต้อง)
         if SystemState.AutoReplay then
             pcall(function()
-                if ActionRemote then
-                    ActionRemote:FireServer("JoinStage", {
+                if ActionEvent then
+                    ActionEvent:FireServer("JoinStage", {
                         World = SystemState.SelectedWorld,
                         Act = SystemState.SelectedAct,
                         Difficulty = SystemState.SelectedDifficulty
@@ -522,10 +527,11 @@ task.spawn(function()
             end)
         end
 
+        -- ✅ Auto Summon (รอยืนยัน Action name ที่ถูกต้อง)
         if SystemState.AutoSummon then
             pcall(function()
-                if ActionRemote then
-                    ActionRemote:FireServer("Summon", {
+                if ActionEvent then
+                    ActionEvent:FireServer("Summon", {
                         Banner = SystemState.SelectedBanner,
                         Amount = SystemState.SummonAmount
                     })
@@ -533,23 +539,26 @@ task.spawn(function()
             end)
         end
 
-        -- ลูป Auto Buy ไอเทมในร้านค้าอัตโนมัติ! (Payload จริงจาก Spy ✅)
+        -- ✅ Auto Buy Gold Shop (ยืนยัน Format จาก Spy แล้ว: "Item", {name, qty})
         if SystemState.AutoBuyShop then
             pcall(function()
-                if ActionRemote then
-                    ActionRemote:FireServer("Item", {
+                if ActionEvent then
+                    ActionEvent:FireServer("Item", {
                         SystemState.SelectedShopItem,
                         SystemState.SelectedQuantity
                     })
-                    print(string.format("[Auto Buy ✅]: %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+                    print(string.format("[Auto Buy ✅]: %s", SystemState.SelectedShopItem))
                 end
             end)
+            -- หยุดพักหลังซื้อ 3 วินาที ป้องกัน rate-limit
+            task.wait(3)
         end
 
+        -- ✅ Auto Farm
         if SystemState.AutoFarm then
             pcall(function()
-                if ActionRemote then
-                    ActionRemote:FireServer("PlaceUnit", {})
+                if ActionEvent then
+                    ActionEvent:FireServer("PlaceUnit", {})
                 end
             end)
         end
