@@ -1,9 +1,9 @@
 --[[
     =============================================================================
-    Anime Defenders - Modern Educational Script & Explicit Target Selection System
+    Anime Defenders - Professional Multi-Tab & Hierarchical Stage UI
     =============================================================================
-    หัวข้อ: การทำระบบเลือกจุดหมาย (Explicit Selection) และการระบุเป้าหมายเจาะจงในเกม
-    เป้าหมาย: ใช้สำหรับการเรียนรู้การรับค่า Input/Dropdown เพื่อระบุการวาร์ปและการสุ่มยูนิต
+    หัวข้อ: การออกแบบ UI แบบ Tab Navigation และระบบคัดเลือกด่านแบบลำดับชั้น (World -> Act -> Difficulty)
+    เป้าหมาย: ใช้สำหรับศึกษาระบบ UI ซับซ้อนระดับโปรและการจัดหมวดหมู่ข้อมูลในเกม Tower Defense
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -14,48 +14,69 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 
--- [2] ตัวแปรระบุเป้าหมายอย่างชัดเจน (Explicit User Choices)
+-- [2] โครงสร้างข้อมูลด่านและตัวเลือกทั้งหมด (Hierarchical Data Structure)
+local GameData = {
+    Worlds = {
+        "Windmill Village",
+        "Cursed Academy",
+        "Demon City",
+        "Swordsman City",
+        "Underwater City"
+    },
+    Acts = {
+        "Act 1", "Act 2", "Act 3",
+        "Act 4", "Act 5", "Act 6", "Infinite"
+    },
+    Difficulties = {
+        "Normal", "Hard", "Nightmare"
+    },
+    Banners = {
+        "Banner 1 (Limited)",
+        "Banner 2 (Standard)",
+        "Wish Banner"
+    }
+}
+
+-- [3] ตัวแปรจัดการสถานะระบบ (System State & Selection)
 local SystemState = {
+    -- สวิตช์การทำงาน
     AutoFarm = false,
     AutoSummon = false,
     AutoReplay = false,
-    
-    -- ผู้เล่นกำหนดเจาะจงว่าจะไปด่านไหน และสุ่มตู้ไหน
-    SelectedWorld = "Windmill Village", -- ด่าน/แมพ ที่เลือก
-    SelectedBanner = "Limited Banner",  -- ตู้สุ่มที่เลือก
-    SummonAmount = 10,                 -- จำนวนสุ่ม (1 หรือ 10)
+    AutoLeaveOnDefeat = false,
+
+    -- ค่าที่เลือกเจาะจง (Selected Options)
+    SelectedWorld = "Windmill Village",
+    SelectedAct = "Act 1",
+    SelectedDifficulty = "Normal",
+    SelectedBanner = "Banner 1 (Limited)",
+    SummonAmount = 10,
 }
 
--- รายชื่อด่านและตู้สุ่มที่มีให้เลือกในระบบ
-local AvailableWorlds = {"Windmill Village", "Demon City", "Planet Namek", "Infinite Arena"}
-local AvailableBanners = {"Limited Banner", "Standard Banner", "Wish Banner"}
-
--- [3] การกำหนดพาธ RemoteEvent สำหรับเกม Anime Defenders
+-- [4] การกำหนดพาธ RemoteEvent สำหรับเกม Anime Defenders
 local Remotes = {
-    PlaceUnit = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("place_unit", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("place_unit"),
-    Summon    = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("summon", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("summon"),
-    Replay    = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("retry", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("retry"),
-    Teleport  = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("teleport_world", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("teleport_world"),
+    JoinStage = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("join_stage", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("join_stage"),
+    PlaceUnit  = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("place_unit", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("place_unit"),
+    Summon     = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("summon", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("summon"),
+    Replay     = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("retry", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("retry"),
 }
 
--- [4] ทำความสะอาด UI เก่าก่อนสร้างใหม่
-local existingUI = CoreGui:FindFirstChild("AnimeDefenders_PremiumUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_PremiumUI")
+-- [5] ทำความสะอาด UI เก่าก่อนสร้างใหม่
+local existingUI = CoreGui:FindFirstChild("AnimeDefenders_ProUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_ProUI")
 if existingUI then
     existingUI:Destroy()
 end
 
--- สร้าง ScreenGui สำหรับแสดงผล
+-- สร้าง ScreenGui หลัก
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AnimeDefenders_PremiumUI"
+ScreenGui.Name = "AnimeDefenders_ProUI"
 ScreenGui.ResetOnSpawn = false
 
 local targetParent = nil
 if gethui then
     targetParent = gethui()
 else
-    local success, _ = pcall(function()
-        targetParent = CoreGui
-    end)
+    local success, _ = pcall(function() targetParent = CoreGui end)
     if not success or not targetParent then
         targetParent = LocalPlayer:WaitForChild("PlayerGui")
     end
@@ -63,233 +84,244 @@ end
 ScreenGui.Parent = targetParent
 
 -- =============================================================================
--- [5] การออกแบบโครงสร้างหลักของ UI (Main Window & Scrolling Frame)
+-- [6] การออกแบบกรอบหลักแบบ มี Sidebar Navigation Tabs
 -- =============================================================================
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 380, 0, 520)
-MainFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+MainFrame.Size = UDim2.new(0, 480, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -240, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(60, 60, 80)
+MainStroke.Color = Color3.fromRGB(50, 50, 70)
 MainStroke.Thickness = 1.5
-MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 MainStroke.Parent = MainFrame
 
--- แถบหัวข้อด้านบน (Header Bar)
-local Header = Instance.new("Frame")
-Header.Name = "Header"
-Header.Size = UDim2.new(1, 0, 0, 50)
-Header.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-Header.BorderSizePixel = 0
-Header.Parent = MainFrame
+-- Sidebar ฝั่งซ้ายสำหรับเลือก Tab
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
 
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 14)
-HeaderCorner.Parent = Header
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0, 12)
+SidebarCorner.Parent = Sidebar
 
-local StatusDot = Instance.new("Frame")
-StatusDot.Size = UDim2.new(0, 10, 0, 10)
-StatusDot.Position = UDim2.new(0, 16, 0.5, -5)
-StatusDot.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
-StatusDot.BorderSizePixel = 0
-StatusDot.Parent = Header
+-- ชื่อสคริปต์ใน Sidebar
+local LogoTitle = Instance.new("TextLabel")
+LogoTitle.Size = UDim2.new(1, 0, 0, 45)
+LogoTitle.BackgroundTransparency = 1
+LogoTitle.Text = "ANIME HUB"
+LogoTitle.TextColor3 = Color3.fromRGB(99, 102, 241)
+LogoTitle.TextSize = 16
+LogoTitle.Font = Enum.Font.GothamBold
+LogoTitle.Parent = Sidebar
 
-local DotCorner = Instance.new("UICorner")
-DotCorner.CornerRadius = UDim.new(1, 0)
-DotCorner.Parent = StatusDot
+-- คอนเทนเนอร์ใส่ปุ่ม Tab
+local TabButtonContainer = Instance.new("Frame")
+TabButtonContainer.Size = UDim2.new(1, -16, 1, -55)
+TabButtonContainer.Position = UDim2.new(0, 8, 0, 45)
+TabButtonContainer.BackgroundTransparency = 1
+TabButtonContainer.Parent = Sidebar
 
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(1, -70, 1, 0)
-TitleText.Position = UDim2.new(0, 34, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "ANIME DEFENDERS"
-TitleText.TextColor3 = Color3.fromRGB(240, 240, 255)
-TitleText.TextSize = 15
-TitleText.Font = Enum.Font.GothamBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = Header
+local TabListLayout = Instance.new("UIListLayout")
+TabListLayout.Parent = TabButtonContainer
+TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabListLayout.Padding = UDim.new(0, 6)
 
-local SubtitleText = Instance.new("TextLabel")
-SubtitleText.Size = UDim2.new(1, -70, 0, 14)
-SubtitleText.Position = UDim2.new(0, 34, 0.6, -2)
-SubtitleText.BackgroundTransparency = 1
-SubtitleText.Text = "Explicit Target & Map Selection v3.0"
-SubtitleText.TextColor3 = Color3.fromRGB(130, 130, 160)
-SubtitleText.TextSize = 10
-SubtitleText.Font = Enum.Font.GothamMedium
-SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
-SubtitleText.Parent = Header
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -40, 0.5, -15)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
-CloseBtn.TextSize = 14
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Parent = Header
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseBtn
-
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+-- พื้นที่แสดงผลเนื้อหาฝั่งขวา (Content Area)
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, -145, 1, -16)
+ContentArea.Position = UDim2.new(0, 138, 0, 8)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
 
 -- =============================================================================
--- [6] Scrolling Frame สำหรับใส่หมวดหมู่การตั้งค่า
+-- [7] ระบบสลับหน้า Tab (Tab Switching Logic)
 -- =============================================================================
 
-local ScrollContainer = Instance.new("ScrollingFrame")
-ScrollContainer.Name = "ScrollContainer"
-ScrollContainer.Size = UDim2.new(1, -24, 1, -65)
-ScrollContainer.Position = UDim2.new(0, 12, 0, 58)
-ScrollContainer.BackgroundTransparency = 1
-ScrollContainer.BorderSizePixel = 0
-ScrollContainer.ScrollBarThickness = 4
-ScrollContainer.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 110)
-ScrollContainer.Parent = MainFrame
+local Tabs = {}
+local TabButtons = {}
 
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Parent = ScrollContainer
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 10)
+local function createTab(tabName, tabIcon)
+    -- สร้างหน้า Content ของ Tab
+    local Page = Instance.new("ScrollingFrame")
+    Page.Name = tabName .. "_Page"
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.BorderSizePixel = 0
+    Page.ScrollBarThickness = 3
+    Page.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 110)
+    Page.Visible = false
+    Page.Parent = ContentArea
 
-UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 20)
-end)
+    local PageLayout = Instance.new("UIListLayout")
+    PageLayout.Parent = Page
+    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    PageLayout.Padding = UDim.new(0, 8)
 
--- ฟังก์ชันสร้าง Section Header (หัวข้อแบ่งหมวดหมู่)
-local function createSectionHeader(titleText)
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, 0, 0, 24)
-    Label.BackgroundTransparency = 1
-    Label.Text = titleText
-    Label.TextColor3 = Color3.fromRGB(160, 160, 200)
-    Label.TextSize = 12
-    Label.Font = Enum.Font.GothamBold
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = ScrollContainer
+    PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 15)
+    end)
+
+    -- สร้างปุ่ม Tab บน Sidebar
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Size = UDim2.new(1, 0, 0, 36)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+    TabBtn.Text = tabIcon .. " " .. tabName
+    TabBtn.TextColor3 = Color3.fromRGB(160, 160, 190)
+    TabBtn.TextSize = 12
+    TabBtn.Font = Enum.Font.GothamMedium
+    TabBtn.TextXAlignment = Enum.TextXAlignment.Left
+    TabBtn.Parent = TabButtonContainer
+
+    local BtnPadding = Instance.new("UIPadding")
+    BtnPadding.PaddingLeft = UDim.new(0, 10)
+    BtnPadding.Parent = TabBtn
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 8)
+    BtnCorner.Parent = TabBtn
+
+    Tabs[tabName] = Page
+    TabButtons[tabName] = TabBtn
+
+    TabBtn.MouseButton1Click:Connect(function()
+        for name, page in pairs(Tabs) do
+            page.Visible = (name == tabName)
+        end
+        for name, btn in pairs(TabButtons) do
+            btn.BackgroundColor3 = (name == tabName) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(30, 30, 42)
+            btn.TextColor3 = (name == tabName) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 190)
+        end
+    end)
+
+    return Page
 end
 
+-- สร้าง 3 Tab หลัก
+local StageTab  = createTab("Farm & Stage", "⚔️")
+local SummonTab = createTab("Summon", "🎯")
+local SettingsTab = createTab("Settings", "⚙️")
+
+-- เปิด Tab แรกเป็นค่าเริ่มต้น
+Tabs["Farm & Stage"].Visible = true
+TabButtons["Farm & Stage"].BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+TabButtons["Farm & Stage"].TextColor3 = Color3.fromRGB(255, 255, 255)
+
 -- =============================================================================
--- [7] ฟังก์ชันสร้าง Option Selector (ระบุตู้สุ่ม / ระบุแมพที่จะไป)
+-- [8] ฟังก์ชันสร้าง Component ตัวเลือก (Dropdown & Buttons Grid)
 -- =============================================================================
 
-local function createGridSelector(title, optionsList, defaultSelection, onSelect)
-    local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(1, 0, 0, 80)
-    Container.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-    Container.BorderSizePixel = 0
-    Container.Parent = ScrollContainer
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 10)
-    Corner.Parent = Container
-
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Color3.fromRGB(45, 45, 60)
-    Stroke.Thickness = 1
-    Stroke.Parent = Container
-
+local function addSectionTitle(parentPage, text)
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -20, 0, 20)
-    Label.Position = UDim2.new(0, 12, 0, 8)
+    Label.Size = UDim2.new(1, 0, 0, 20)
     Label.BackgroundTransparency = 1
-    Label.Text = title
-    Label.TextColor3 = Color3.fromRGB(230, 230, 245)
-    Label.TextSize = 13
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(140, 140, 180)
+    Label.TextSize = 11
     Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Container
+    Label.Parent = parentPage
+end
 
-    local ButtonFrame = Instance.new("Frame")
-    ButtonFrame.Size = UDim2.new(1, -24, 0, 36)
-    ButtonFrame.Position = UDim2.new(0, 12, 0, 34)
-    ButtonFrame.BackgroundTransparency = 1
-    ButtonFrame.Parent = Container
+local function addOptionSelector(parentPage, title, optionsList, currentChoice, onSelect)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 58)
+    Frame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = parentPage
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -16, 0, 18)
+    Label.Position = UDim2.new(0, 8, 0, 6)
+    Label.BackgroundTransparency = 1
+    Label.Text = title
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.TextSize = 11
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local Grid = Instance.new("Frame")
+    Grid.Size = UDim2.new(1, -16, 0, 26)
+    Grid.Position = UDim2.new(0, 8, 0, 26)
+    Grid.BackgroundTransparency = 1
+    Grid.Parent = Frame
 
     local GridLayout = Instance.new("UIGridLayout")
-    GridLayout.Parent = ButtonFrame
-    GridLayout.CellSize = UDim2.new(1 / #optionsList, -6, 1, 0)
-    GridLayout.CellPadding = UDim2.new(0, 6, 0, 0)
+    GridLayout.Parent = Grid
+    GridLayout.CellSize = UDim2.new(1 / #optionsList, -4, 1, 0)
+    GridLayout.CellPadding = UDim2.new(0, 4, 0, 0)
 
-    local activeChoice = defaultSelection
+    local selected = currentChoice
 
-    for _, optionName in ipairs(optionsList) do
-        local OptBtn = Instance.new("TextButton")
-        OptBtn.BackgroundColor3 = (optionName == activeChoice) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
-        OptBtn.Text = optionName
-        OptBtn.TextColor3 = Color3.fromRGB(240, 240, 255)
-        OptBtn.TextSize = 10
-        OptBtn.Font = Enum.Font.GothamMedium
-        OptBtn.Parent = ButtonFrame
+    for _, name in ipairs(optionsList) do
+        local Btn = Instance.new("TextButton")
+        Btn.BackgroundColor3 = (name == selected) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(36, 36, 50)
+        Btn.Text = name
+        Btn.TextColor3 = Color3.fromRGB(240, 240, 255)
+        Btn.TextSize = 10
+        Btn.Font = Enum.Font.GothamMedium
+        Btn.Parent = Grid
 
-        local OptCorner = Instance.new("UICorner")
-        OptCorner.CornerRadius = UDim.new(0, 6)
-        OptCorner.Parent = OptBtn
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 6)
+        BtnCorner.Parent = Btn
 
-        OptBtn.MouseButton1Click:Connect(function()
-            activeChoice = optionName
-            for _, btn in ipairs(ButtonFrame:GetChildren()) do
-                if btn:IsA("TextButton") then
-                    btn.BackgroundColor3 = (btn.Text == activeChoice) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
+        Btn.MouseButton1Click:Connect(function()
+            selected = name
+            for _, child in ipairs(Grid:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child.BackgroundColor3 = (child.Text == selected) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(36, 36, 50)
                 end
             end
-            if onSelect then
-                onSelect(activeChoice)
-            end
+            onSelect(selected)
         end)
     end
 end
 
--- =============================================================================
--- [8] ฟังก์ชันสร้าง Toggle Card (เปิด/ปิด ระบบออโต้)
--- =============================================================================
-
-local function createToggleCard(title, subtitle, stateKey)
+local function addToggleCard(parentPage, title, subtitle, stateKey)
     local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, 56)
-    Card.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Card.Size = UDim2.new(1, 0, 0, 52)
+    Card.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
     Card.BorderSizePixel = 0
-    Card.Parent = ScrollContainer
+    Card.Parent = parentPage
 
     local CardCorner = Instance.new("UICorner")
-    CardCorner.CornerRadius = UDim.new(0, 10)
+    CardCorner.CornerRadius = UDim.new(0, 8)
     CardCorner.Parent = Card
 
-    local CardStroke = Instance.new("UIStroke")
-    CardStroke.Color = Color3.fromRGB(45, 45, 60)
-    CardStroke.Thickness = 1
-    CardStroke.Parent = Card
-
     local CardTitle = Instance.new("TextLabel")
-    CardTitle.Size = UDim2.new(0.7, 0, 0, 18)
-    CardTitle.Position = UDim2.new(0, 12, 0, 8)
+    CardTitle.Size = UDim2.new(0.7, 0, 0, 16)
+    CardTitle.Position = UDim2.new(0, 10, 0, 8)
     CardTitle.BackgroundTransparency = 1
     CardTitle.Text = title
     CardTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
-    CardTitle.TextSize = 13
+    CardTitle.TextSize = 12
     CardTitle.Font = Enum.Font.GothamBold
     CardTitle.TextXAlignment = Enum.TextXAlignment.Left
     CardTitle.Parent = Card
 
     local CardSub = Instance.new("TextLabel")
     CardSub.Size = UDim2.new(0.7, 0, 0, 14)
-    CardSub.Position = UDim2.new(0, 12, 0, 28)
+    CardSub.Position = UDim2.new(0, 10, 0, 26)
     CardSub.BackgroundTransparency = 1
     CardSub.Text = subtitle
     CardSub.TextColor3 = Color3.fromRGB(130, 130, 155)
@@ -299,8 +331,8 @@ local function createToggleCard(title, subtitle, stateKey)
     CardSub.Parent = Card
 
     local SwitchPill = Instance.new("Frame")
-    SwitchPill.Size = UDim2.new(0, 44, 0, 24)
-    SwitchPill.Position = UDim2.new(1, -54, 0.5, -12)
+    SwitchPill.Size = UDim2.new(0, 40, 0, 22)
+    SwitchPill.Position = UDim2.new(1, -48, 0.5, -11)
     SwitchPill.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
     SwitchPill.BorderSizePixel = 0
     SwitchPill.Parent = Card
@@ -310,8 +342,8 @@ local function createToggleCard(title, subtitle, stateKey)
     SwitchCorner.Parent = SwitchPill
 
     local Knob = Instance.new("Frame")
-    Knob.Size = UDim2.new(0, 18, 0, 18)
-    Knob.Position = UDim2.new(0, 3, 0.5, -9)
+    Knob.Size = UDim2.new(0, 16, 0, 16)
+    Knob.Position = UDim2.new(0, 3, 0.5, -8)
     Knob.BackgroundColor3 = Color3.fromRGB(180, 180, 200)
     Knob.BorderSizePixel = 0
     Knob.Parent = SwitchPill
@@ -331,75 +363,81 @@ local function createToggleCard(title, subtitle, stateKey)
         local isON = SystemState[stateKey]
 
         local targetPillColor = isON and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(45, 45, 60)
-        local targetKnobPos = isON and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
-        local targetKnobColor = isON and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 180, 200)
+        local targetKnobPos = isON and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 
-        TweenService:Create(SwitchPill, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = targetPillColor}):Play()
-        TweenService:Create(Knob, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Position = targetKnobPos, BackgroundColor3 = targetKnobColor}):Play()
+        TweenService:Create(SwitchPill, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundColor3 = targetPillColor}):Play()
+        TweenService:Create(Knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Position = targetKnobPos}):Play()
     end)
 end
 
 -- =============================================================================
--- [9] สร้างหน้าต่างเมนูแยกตามหมวดหมู่ (Sections)
+-- [9] ใส่เนื้อหาในแต่ละ Tab (Populating Tab Contents)
 -- =============================================================================
 
--- หมวดหมู่ที่ 1: เลือกแมพ/ด่าน
-createSectionHeader("🗺️ MAP & WORLD SELECTION")
-createGridSelector("ระบุแมพที่ต้องการจะไป / เล่น:", AvailableWorlds, SystemState.SelectedWorld, function(selected)
-    SystemState.SelectedWorld = selected
-    print("[User Choice]: เลือกแมพ -> ", selected)
+-- --- TAB 1: Farm & Stage ---
+addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP")
+addOptionSelector(StageTab, "เลือกแมพ (World):", {"Windmill", "Cursed", "Demon", "Swordsman"}, "Windmill", function(val)
+    SystemState.SelectedWorld = val
+    print("Selected World: ", val)
 end)
 
--- หมวดหมู่ที่ 2: เลือกตู้สุ่ม
-createSectionHeader("🎯 SUMMON & BANNER SELECTION")
-createGridSelector("ระบุตู้สุ่มที่ต้องการสุ่ม:", AvailableBanners, SystemState.SelectedBanner, function(selected)
-    SystemState.SelectedBanner = selected
-    print("[User Choice]: เลือกตู้สุ่ม -> ", selected)
+addSectionTitle(StageTab, "📜 SELECT ACT & DIFFICULTY")
+addOptionSelector(StageTab, "เลือก Act:", {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"}, "Act 1", function(val)
+    SystemState.SelectedAct = val
+    print("Selected Act: ", val)
 end)
 
--- หมวดหมู่ที่ 3: สวิตช์การทำงานอัตโนมัติ
-createSectionHeader("⚡ AUTOMATION CONTROLS")
-createToggleCard("Auto Teleport / Join", "วาร์ปเข้าแมพตามที่ระบุไว้ด้านบน", "AutoReplay")
-createToggleCard("Auto Summon Units", "สุ่มยูนิตตามตู้ที่ระบุไว้ด้านบน", "AutoSummon")
-createToggleCard("Auto Farm Stage", "วางยูนิตและต่อสู้ในด่านให้อัตโนมัติ", "AutoFarm")
+addOptionSelector(StageTab, "เลือกระดับความยาก (Difficulty):", GameData.Difficulties, "Normal", function(val)
+    SystemState.SelectedDifficulty = val
+    print("Selected Difficulty: ", val)
+end)
+
+addSectionTitle(StageTab, "⚡ AUTO CONTROLS")
+addToggleCard(StageTab, "Auto Join Selected Stage", "วาร์ปเข้าด่านตาม World + Act + Difficulty ที่เลือก", "AutoReplay")
+addToggleCard(StageTab, "Auto Farm Units", "สั่งวางยูนิตและต่อสู้อัตโนมัติ", "AutoFarm")
+
+-- --- TAB 2: Summon ---
+addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION")
+addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", {"Banner 1", "Banner 2", "Wish"}, "Banner 1", function(val)
+    SystemState.SelectedBanner = val
+    print("Selected Banner: ", val)
+end)
+
+addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
+addToggleCard(SummonTab, "Auto Summon Units", "สุ่มยูนิตตามตู้ที่เลือกไว้อัตโนมัติ", "AutoSummon")
+
+-- --- TAB 3: Settings ---
+addSectionTitle(SettingsTab, "⚙️ SYSTEM SETTINGS")
+addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านให้อัตโนมัติเมื่อแพ้", "AutoLeaveOnDefeat")
 
 -- =============================================================================
--- [10] ลูปส่งสัญญาณตามค่าที่ผู้เล่นเลือกเจาะจง (Explicit Argument Loop)
+-- [10] ลูปส่งสัญญาณ RemoteEvent แบบสมบูรณ์ (World + Act + Difficulty)
 -- =============================================================================
 
 task.spawn(function()
     while true do
         task.wait(1.5)
 
-        -- 1. สั่งวาร์ปเข้าแมพตามที่ผู้เล่นเลือกบนเมนู
+        -- ยิงคำสั่งเข้าเล่นด่าน พร้อมส่ง World + Act + Difficulty ไปพร้อมกัน!
         if SystemState.AutoReplay then
             pcall(function()
-                if Remotes.Teleport then
-                    Remotes.Teleport:FireServer(SystemState.SelectedWorld)
-                    print("[RemoteEvent]: Teleporting player to -> ", SystemState.SelectedWorld)
+                if Remotes.JoinStage then
+                    Remotes.JoinStage:FireServer(SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty)
+                    print(string.format("[RemoteEvent]: Joining -> %s | %s | %s", SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty))
                 end
             end)
         end
 
-        -- 2. สั่งสุ่มยูนิตตามตู้ที่ผู้เล่นเลือกบนเมนู
+        -- ยิงคำสั่งสุ่มยูนิต
         if SystemState.AutoSummon then
             pcall(function()
                 if Remotes.Summon then
                     Remotes.Summon:FireServer(SystemState.SelectedBanner, SystemState.SummonAmount)
-                    print("[RemoteEvent]: Summoning 10x from -> ", SystemState.SelectedBanner)
-                end
-            end)
-        end
-
-        -- 3. ออโต้ฟาร์ม
-        if SystemState.AutoFarm then
-            pcall(function()
-                if Remotes.PlaceUnit then
-                    Remotes.PlaceUnit:FireServer(SystemState.SelectedWorld)
+                    print(string.format("[RemoteEvent]: Summoning 10x from -> %s", SystemState.SelectedBanner))
                 end
             end)
         end
     end
 end)
 
-print("Anime Defenders Explicit Selection UI Loaded!")
+print("Anime Defenders Multi-Tab Hierarchical UI Loaded!")
