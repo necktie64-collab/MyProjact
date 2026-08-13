@@ -27,20 +27,21 @@ local GameData = {
     Difficulties = {"Normal", "Hard", "Nightmare"},
     Banners = {"Banner 1 (Limited)", "Banner 2 (Limited)", "Standard Banner", "Wish Banner", "Exclusive Banner"},
     
-    -- รายการไอเทมทั้งหมดในร้านค้าเกม Anime Defenders
+    -- รายการไอเทม ชื่อจริงในร้านค้า (ยืนยันจาก Action Spy แล้ว 100%!)
     ShopItems = {
-        "Star Seed", 
-        "Trait Reroll", 
-        "Risk Dice", 
-        "Frost Crystal", 
-        "Red Star", 
-        "Blue Star", 
-        "Green Star",
-        "EXP Boost (2x)"
+        "Trait Crystal",
+        "Divine Trait Crystal",
+        "Risky Dice",
+        "Frost Bind",
+        "Star Rift (Dark)",
+        "Star Rift (Light)",
+        "Star Rift (Rainbow)",
+        "Ancient Relic",
+        "Jester's Hat"
     },
     
     -- จำนวนที่สั่งซื้อต่อรอบ
-    Quantities = {"1", "5", "10", "50"},
+    Quantities = {"1", "5", "10", "40", "50"},
     
     KeybindOptions = {
         {Name = "Right Ctrl", Key = Enum.KeyCode.RightControl},
@@ -65,7 +66,7 @@ local SystemState = {
     SummonAmount = 10,
     
     -- ค่าสินค้าใน Shop ที่ผู้เล่นเลือก
-    SelectedShopItem = "Star Seed",
+    SelectedShopItem = "Trait Crystal",  -- ชื่อจริงจาก Spy ✅
     SelectedQuantity = 1,
     
     ToggleKey = Enum.KeyCode.RightControl,
@@ -476,11 +477,12 @@ addSectionTitle(ShopTab, "🛒 SHOP ACTIONS & AUTOMATION")
 addActionButton(ShopTab, "🛒 สั่งซื้อไอเทมที่เลือกทันที (BUY NOW)", function()
     pcall(function()
         if ActionRemote then
-            ActionRemote:FireServer("BuyItem", {
-                Item = SystemState.SelectedShopItem,
-                Amount = SystemState.SelectedQuantity
+            -- รูปแบบ Payload จริงที่ยืนยันจาก Action Spy: FireServer("Item", {ชื่อไอเทม, จำนวน})
+            ActionRemote:FireServer("Item", {
+                SystemState.SelectedShopItem,
+                SystemState.SelectedQuantity
             })
-            print(string.format("[Shop Action]: Buying %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+            print(string.format("[BUY NOW ✅]: %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
         end
     end)
 end)
@@ -531,15 +533,15 @@ task.spawn(function()
             end)
         end
 
-        -- ลูป Auto Buy ไอเทมในร้านค้าอัตโนมัติ!
+        -- ลูป Auto Buy ไอเทมในร้านค้าอัตโนมัติ! (Payload จริงจาก Spy ✅)
         if SystemState.AutoBuyShop then
             pcall(function()
                 if ActionRemote then
-                    ActionRemote:FireServer("BuyItem", {
-                        Item = SystemState.SelectedShopItem,
-                        Amount = SystemState.SelectedQuantity
+                    ActionRemote:FireServer("Item", {
+                        SystemState.SelectedShopItem,
+                        SystemState.SelectedQuantity
                     })
-                    print(string.format("[Auto Buy Shop]: Purchased %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
+                    print(string.format("[Auto Buy ✅]: %d x %s", SystemState.SelectedQuantity, SystemState.SelectedShopItem))
                 end
             end)
         end
