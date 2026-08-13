@@ -1,9 +1,9 @@
 --[[
     =============================================================================
-    Anime Defenders - Professional Multi-Tab Script (Real Remote Integration)
+    Anime Defenders - Professional UI with Keybind Toggle & Key Configuration
     =============================================================================
-    หัวข้อ: การใช้ Action Dispatcher (ReplicatedStorage.Actions.Action) ในเกมจริง
-    เป้าหมาย: นำรายชื่อ Remote จริงของเกม Anime Defenders มาเชื่อมต่อกับ UI และระบบ Automation
+    หัวข้อ: การทำระบบซ่อน/แสดงหน้าต่างด้วย Keybind (RightControl) และการตั้งค่าปุ่ม
+    เป้าหมาย: ใช้สำหรับศึกษาระบบ UserInputService, Keybind Configuration และการทำ Floating Toggle Button
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -11,6 +11,7 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -19,7 +20,15 @@ local GameData = {
     Worlds = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater"},
     Acts = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
     Difficulties = {"Normal", "Hard", "Nightmare"},
-    Banners = {"Banner 1", "Banner 2", "Wish"}
+    Banners = {"Banner 1", "Banner 2", "Wish"},
+    
+    -- รายชื่อปุ่มคีย์ลัดที่มีให้เลือกในเมนูตั้งค่า
+    KeybindOptions = {
+        {Name = "Right Ctrl", Key = Enum.KeyCode.RightControl},
+        {Name = "Right Shift", Key = Enum.KeyCode.RightShift},
+        {Name = "Right Alt", Key = Enum.KeyCode.RightAlt},
+        {Name = "F3 Key", Key = Enum.KeyCode.F3},
+    }
 }
 
 -- [3] ตัวแปรจัดการสถานะระบบ (System State & User Choices)
@@ -34,9 +43,13 @@ local SystemState = {
     SelectedDifficulty = "Normal",
     SelectedBanner = "Banner 1",
     SummonAmount = 10,
+    
+    -- ปุ่มคีย์ลัดซ่อน/แสดงเมนู (ค่าเริ่มต้น: RightControl)
+    ToggleKey = Enum.KeyCode.RightControl,
+    IsUIVisible = true,
 }
 
--- [4] การเชื่อมต่อกับ Remote จริงของเกม Anime Defenders (จากสแกนเนอร์)
+-- [4] การเชื่อมต่อกับ Remote จริงของเกม Anime Defenders
 local ActionRemote = ReplicatedStorage:WaitForChild("Actions", 5) and ReplicatedStorage.Actions:WaitForChild("Action", 5)
 local RemotesFolder = ReplicatedStorage:WaitForChild("Remotes", 5)
 
@@ -54,7 +67,7 @@ if not targetParent then pcall(function() targetParent = LocalPlayer:WaitForChil
 ScreenGui.Parent = targetParent
 
 -- =============================================================================
--- [6] โครงสร้าง GUI แบบ Multi-Tab Navigation
+-- [6] โครงสร้าง GUI หลัก และปุ่ม Floating Toggle Button (สำหรับมือถือ)
 -- =============================================================================
 
 local MainFrame = Instance.new("Frame")
@@ -75,6 +88,44 @@ local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = Color3.fromRGB(50, 50, 70)
 MainStroke.Thickness = 1.5
 MainStroke.Parent = MainFrame
+
+-- ปุ่มลอยซ่อน/แสดงเมนูบนหน้าจอ (สำหรับแตะจอมือถือ)
+local MobileToggleBtn = Instance.new("TextButton")
+MobileToggleBtn.Name = "MobileToggleBtn"
+MobileToggleBtn.Size = UDim2.new(0, 44, 0, 44)
+MobileToggleBtn.Position = UDim2.new(0, 15, 0.5, -22)
+MobileToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+MobileToggleBtn.Text = "👁️"
+MobileToggleBtn.TextSize = 20
+MobileToggleBtn.Active = true
+MobileToggleBtn.Draggable = true
+MobileToggleBtn.Parent = ScreenGui
+
+local MobileCorner = Instance.new("UICorner")
+MobileCorner.CornerRadius = UDim.new(1, 0)
+MobileCorner.Parent = MobileToggleBtn
+
+local MobileStroke = Instance.new("UIStroke")
+MobileStroke.Color = Color3.fromRGB(99, 102, 241)
+MobileStroke.Thickness = 1.5
+MobileStroke.Parent = MobileToggleBtn
+
+-- ฟังก์ชันซ่อน/แสดงเมนู (Toggle Visibility)
+local function toggleUIVisibility()
+    SystemState.IsUIVisible = not SystemState.IsUIVisible
+    MainFrame.Visible = SystemState.IsUIVisible
+end
+
+MobileToggleBtn.MouseButton1Click:Connect(toggleUIVisibility)
+
+-- ตรวจจับการกดปุ่มคีย์บอร์ด (RightControl หรือปุ่มที่ตั้งค่าไว้)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode == SystemState.ToggleKey then
+            toggleUIVisibility()
+        end
+    end
+end)
 
 -- Sidebar ฝั่งซ้าย
 local Sidebar = Instance.new("Frame")
@@ -174,8 +225,8 @@ local function createTab(tabName, tabIcon)
     return Page
 end
 
-local StageTab  = createTab("Farm & Stage", "⚔️")
-local SummonTab = createTab("Summon", "🎯")
+local StageTab    = createTab("Farm & Stage", "⚔️")
+local SummonTab   = createTab("Summon", "🎯")
 local SettingsTab = createTab("Settings", "⚙️")
 
 Tabs["Farm & Stage"].Visible = true
@@ -361,6 +412,21 @@ end)
 addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
 addToggleCard(SummonTab, "Auto Summon Units", "ยิง ActionRemote สั่งสุ่มยูนิตตามตู้ที่เลือก", "AutoSummon")
 
+-- --- Settings Tab: ตั้งค่า Keybind ซ่อน/แสดง UI ---
+addSectionTitle(SettingsTab, "⌨️ KEYBIND CONFIGURATION")
+
+local keyNames = {}
+for _, opt in ipairs(GameData.KeybindOptions) do table.insert(keyNames, opt.Name) end
+
+addOptionSelector(SettingsTab, "เลือกปุ่มคีย์ลัด ซ่อน/แสดง เมนู:", keyNames, "Right Ctrl", function(val)
+    for _, opt in ipairs(GameData.KeybindOptions) do
+        if opt.Name == val then
+            SystemState.ToggleKey = opt.Key
+            print("เปลี่ยนปุ่มคีย์ลัดเป็น: ", val)
+        end
+    end
+end)
+
 addSectionTitle(SettingsTab, "⚙️ SYSTEM SETTINGS")
 addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านเมื่อแพ้", "AutoLeaveOnDefeat")
 
@@ -372,22 +438,18 @@ task.spawn(function()
     while true do
         task.wait(1.5)
 
-        -- 1. ยิง ActionRemote เข้าด่านตาม World + Act + Difficulty
         if SystemState.AutoReplay then
             pcall(function()
                 if ActionRemote then
-                    -- โครงสร้าง Action Dispatcher ของ Anime Defenders
                     ActionRemote:FireServer("JoinStage", {
                         World = SystemState.SelectedWorld,
                         Act = SystemState.SelectedAct,
                         Difficulty = SystemState.SelectedDifficulty
                     })
-                    print(string.format("[Action Dispatcher]: Joined -> %s | %s | %s", SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty))
                 end
             end)
         end
 
-        -- 2. ยิง ActionRemote สุ่มตัวละครตาม Banner ที่เลือก
         if SystemState.AutoSummon then
             pcall(function()
                 if ActionRemote then
@@ -395,12 +457,10 @@ task.spawn(function()
                         Banner = SystemState.SelectedBanner,
                         Amount = SystemState.SummonAmount
                     })
-                    print(string.format("[Action Dispatcher]: Summoning from -> %s", SystemState.SelectedBanner))
                 end
             end)
         end
 
-        -- 3. ยิง ActionRemote วางยูนิต
         if SystemState.AutoFarm then
             pcall(function()
                 if ActionRemote then
@@ -411,4 +471,4 @@ task.spawn(function()
     end
 end)
 
-print("Anime Defenders Action-Dispatcher Script Loaded!")
+print("Anime Defenders Script with RightControl Keybind Loaded!")
