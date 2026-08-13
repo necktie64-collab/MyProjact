@@ -1,10 +1,10 @@
 --[[
     =============================================================================
-    Anime Defenders - Complete Multi-Banner & Custom Input Script System
+    Anime Defenders - Professional Dynamic Data Scraping & Auto-Detect System
     =============================================================================
-    หัวข้อ: การรองรับ Banner ทั้งหมดของเกม Anime Defenders และการทำ Custom Input Box
-    เป้าหมาย: เพิ่มตู้สุ่มครบทุกประเภท (Limited 1, Limited 2, Standard, Wish, Exclusive, Event) 
-             พร้อมช่องพิมพ์ชื่อ Banner และชื่อแมพแบบกำหนดเอง (Custom Input)
+    หัวข้อ: การทำระบบสแกนข้อมูลอัตโนมัติ (Dynamic Data Scraping / Reflection)
+    เป้าหมาย: ศึกษาเทคนิคของ Script Hub มืออาชีพที่ใช้วิธีสแกนหาชื่อแมพและชื่อตู้สุ่มจากในตัวเกมจริง
+             มาร่วมสร้างปุ่มเมนูให้อัตโนมัติ โดยไม่ต้องมานั่งพิมพ์แก้ไขโค้ดเองเมื่อมีแพตช์ใหม่
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -13,30 +13,65 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 
--- [2] โครงสร้างข้อมูลด่านและตู้สุ่มครบถ้วน (Complete Banner & Stage List)
-local GameData = {
-    Worlds = {
-        "Windmill", "Cursed", "Demon", "Swordsman", "Underwater", "Portal World"
-    },
-    Acts = {
-        "Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"
-    },
-    Difficulties = {
-        "Normal", "Hard", "Nightmare"
-    },
+-- =============================================================================
+-- [2] ระบบสแกนข้อมูลอัตโนมัติจากในเกม (Dynamic Runtime Data Scraper)
+-- =============================================================================
+
+local function getDynamicWorlds()
+    local worldsFound = {}
     
-    -- รายชื่อตู้สุ่มทั้งหมดในเกม Anime Defenders (ครบทุกประเภท)
-    Banners = {
-        "Banner 1 (Limited)",
-        "Banner 2 (Limited)",
-        "Standard Banner",
-        "Wish Banner",
-        "Exclusive Banner",
-        "Event Banner"
-    },
+    -- 1. สแกนหาชื่อแมพจาก ReplicatedStorage หรือ Workspace
+    local worldsFolder = ReplicatedStorage:FindFirstChild("Worlds") or ReplicatedStorage:FindFirstChild("Maps") or Workspace:FindFirstChild("Worlds")
+    if worldsFolder then
+        for _, obj in ipairs(worldsFolder:GetChildren()) do
+            table.insert(worldsFound, obj.Name)
+        end
+    end
+    
+    -- หากสแกนไม่เจอ (เช่น โครงสร้างปิดซ่อนอยู่) ให้ใช้รายชื่อสำรองมาตรฐาน
+    if #worldsFound == 0 then
+        worldsFound = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater", "Portal World"}
+    end
+    
+    return worldsFound
+end
+
+local function getDynamicBanners()
+    local bannersFound = {}
+    
+    -- 1. สแกนหาชื่อตู้สุ่มจากโฟลเดอร์ Banners หรือ Summon UI ในเกม
+    local bannersFolder = ReplicatedStorage:FindFirstChild("Banners") or ReplicatedStorage:FindFirstChild("SummonBanners")
+    if bannersFolder then
+        for _, obj in ipairs(bannersFolder:GetChildren()) do
+            table.insert(bannersFound, obj.Name)
+        end
+    end
+    
+    -- หากสแกนไม่เจอ ให้ใช้รายชื่อตู้สุ่มมาตรฐานของเกม
+    if #bannersFound == 0 then
+        bannersFound = {
+            "Banner 1 (Limited)",
+            "Banner 2 (Limited)",
+            "Standard Banner",
+            "Wish Banner",
+            "Exclusive Banner",
+            "Event Banner"
+        }
+    end
+    
+    return bannersFound
+end
+
+-- ดึงข้อมูลแบบอัตโนมัติเข้าสู่โครงสร้างหลัก
+local GameData = {
+    Worlds = getDynamicWorlds(),
+    Acts = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+    Difficulties = {"Normal", "Hard", "Nightmare"},
+    Banners = getDynamicBanners(),
     
     KeybindOptions = {
         {Name = "Right Ctrl", Key = Enum.KeyCode.RightControl},
@@ -53,10 +88,10 @@ local SystemState = {
     AutoReplay = false,
     AutoLeaveOnDefeat = false,
 
-    SelectedWorld = "Windmill",
+    SelectedWorld = GameData.Worlds[1] or "Windmill",
     SelectedAct = "Act 1",
     SelectedDifficulty = "Normal",
-    SelectedBanner = "Banner 1 (Limited)",
+    SelectedBanner = GameData.Banners[1] or "Banner 1 (Limited)",
     SummonAmount = 10,
     
     ToggleKey = Enum.KeyCode.RightControl,
@@ -261,7 +296,6 @@ local function addSectionTitle(parentPage, text)
     Label.Parent = parentPage
 end
 
--- ช่องพิมพ์ชื่อ Custom Input (สำหรับพิมพ์ชื่อ Banner หรือชื่อแมพแบบกำหนดเอง)
 local function addCustomInput(parentPage, title, placeholder, onFocusLost)
     local Frame = Instance.new("Frame")
     Frame.Size = UDim2.new(1, 0, 0, 56)
@@ -451,9 +485,8 @@ end
 -- [9] เติมเนื้อหาในแต่ละ Tab
 -- =============================================================================
 
--- --- Farm & Stage Tab ---
-addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP")
-addOptionSelector(StageTab, "เลือกแมพ (World):", GameData.Worlds, "Windmill", function(val)
+addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP (Auto-Scanned)")
+addOptionSelector(StageTab, "เลือกแมพ (World):", GameData.Worlds, SystemState.SelectedWorld, function(val)
     SystemState.SelectedWorld = val
 end)
 
@@ -470,17 +503,14 @@ addSectionTitle(StageTab, "⚡ AUTO CONTROLS")
 addToggleCard(StageTab, "Auto Join Selected Stage", "ยิง ActionRemote สั่งเข้าเล่นด่านตามที่เลือก", "AutoReplay")
 addToggleCard(StageTab, "Auto Farm Units", "ยิง ActionRemote สั่งวางยูนิตและสู้ในด่าน", "AutoFarm")
 
--- --- Summon Tab: เพิ่ม Banner ครบทุกประเภท + ช่องพิมพ์ชื่อ Custom ---
-addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION (ครบทุกตู้)")
-addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", GameData.Banners, "Banner 1 (Limited)", function(val)
+-- --- Summon Tab ---
+addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION (Auto-Scanned)")
+addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", GameData.Banners, SystemState.SelectedBanner, function(val)
     SystemState.SelectedBanner = val
-    print("เลือกตู้: ", val)
 end)
 
--- ช่องพิมพ์ชื่อ Custom Banner หากเป็นตู้อัปเดตใหม่
-addCustomInput(SummonTab, "✏️ พิมพ์ชื่อ Banner เอง (Custom Banner):", "เช่น Special_Banner_Season2", function(text)
+addCustomInput(SummonTab, "✏️ พิมพ์ชื่อ Banner เอง (Custom Input):", "เช่น Special_Banner_Season2", function(text)
     SystemState.SelectedBanner = text
-    print("ตั้งค่า Custom Banner: ", text)
 end)
 
 addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
@@ -530,7 +560,6 @@ task.spawn(function()
                         Banner = SystemState.SelectedBanner,
                         Amount = SystemState.SummonAmount
                     })
-                    print("[Summoning]: Banner = ", SystemState.SelectedBanner)
                 end
             end)
         end
@@ -545,4 +574,4 @@ task.spawn(function()
     end
 end)
 
-print("Anime Defenders All-Banner Script System Loaded!")
+print("Anime Defenders Auto-Scraper Script System Loaded!")
