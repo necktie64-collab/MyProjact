@@ -1,4 +1,4 @@
--- [[
+--[[
     =============================================================================
     Anime Defenders - Modern Educational Script & Premium UI System
     =============================================================================
@@ -21,18 +21,30 @@ local SystemState = {
     AutoReplay = false,
 }
 
--- [3] สร้าง ScreenGui สำหรับแสดงผล
+-- [3] ทำความสะอาด UI เก่าก่อนสร้างใหม่ (Prevent Duplicates)
+local existingUI = CoreGui:FindFirstChild("AnimeDefenders_PremiumUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_PremiumUI")
+if existingUI then
+    existingUI:Destroy()
+end
+
+-- สร้าง ScreenGui สำหรับแสดงผล
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AnimeDefenders_PremiumUI"
 ScreenGui.ResetOnSpawn = false
 
--- ตรวจสอบตำแหน่งการวาง GUI (CoreGui หรือ PlayerGui)
-local success, _ = pcall(function()
-    ScreenGui.Parent = CoreGui
-end)
-if not success then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- ตรวจสอบตำแหน่งการวาง GUI (ใช้ gethui() หากมีใน Executor หรือใช้ CoreGui / PlayerGui)
+local targetParent = nil
+if gethui then
+    targetParent = gethui()
+else
+    local success, _ = pcall(function()
+        targetParent = CoreGui
+    end)
+    if not success or not targetParent then
+        targetParent = LocalPlayer:WaitForChild("PlayerGui")
+    end
 end
+ScreenGui.Parent = targetParent
 
 -- =============================================================================
 -- [4] การออกแบบโครงสร้างหลักของ UI (Main Frame & Glassmorphism Theme)
@@ -261,32 +273,20 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(1.5) -- หน่วงเวลาพักระบบเพื่อป้องกันเซิร์ฟเวอร์หลุด
+        task.wait(1.5)
 
         -- 1. ลูปทำงาน Auto Farm
         if SystemState.AutoFarm then
-            -- [จุดใส่ RemoteEvent ของเกม Anime Defenders]:
-            -- pcall(function()
-            --     ReplicatedStorage.Remotes.PlaceUnit:FireServer("UnitID_Here", CFrame.new(0,0,0))
-            -- end)
             print("[System]: Auto Farming Active...")
         end
 
         -- 2. ลูปทำงาน Auto Summon
         if SystemState.AutoSummon then
-            -- [จุดใส่ RemoteEvent สำหรับซื้อ/สุ่มไอเทม]:
-            -- pcall(function()
-            --     ReplicatedStorage.Remotes.Summon:FireServer("Banner_Name", 10)
-            -- end)
             print("[System]: Auto Summoning Active...")
         end
 
         -- 3. ลูปทำงาน Auto Replay
         if SystemState.AutoReplay then
-            -- [จุดใส่ RemoteEvent สั่งเริ่มเล่นด่านถัดไป]:
-            -- pcall(function()
-            --     ReplicatedStorage.Remotes.ReplayMatch:FireServer()
-            -- end)
             print("[System]: Auto Replay Active...")
         end
     end
