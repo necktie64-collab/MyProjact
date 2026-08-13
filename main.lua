@@ -1,9 +1,10 @@
 --[[
     =============================================================================
-    Anime Defenders - Professional UI with Keybind Toggle & Key Configuration
+    Anime Defenders - Complete Multi-Banner & Custom Input Script System
     =============================================================================
-    หัวข้อ: การทำระบบซ่อน/แสดงหน้าต่างด้วย Keybind (RightControl) และการตั้งค่าปุ่ม
-    เป้าหมาย: ใช้สำหรับศึกษาระบบ UserInputService, Keybind Configuration และการทำ Floating Toggle Button
+    หัวข้อ: การรองรับ Banner ทั้งหมดของเกม Anime Defenders และการทำ Custom Input Box
+    เป้าหมาย: เพิ่มตู้สุ่มครบทุกประเภท (Limited 1, Limited 2, Standard, Wish, Exclusive, Event) 
+             พร้อมช่องพิมพ์ชื่อ Banner และชื่อแมพแบบกำหนดเอง (Custom Input)
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -15,14 +16,28 @@ local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- [2] โครงสร้างข้อมูลด่านและตู้สุ่ม
+-- [2] โครงสร้างข้อมูลด่านและตู้สุ่มครบถ้วน (Complete Banner & Stage List)
 local GameData = {
-    Worlds = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater"},
-    Acts = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
-    Difficulties = {"Normal", "Hard", "Nightmare"},
-    Banners = {"Banner 1", "Banner 2", "Wish"},
+    Worlds = {
+        "Windmill", "Cursed", "Demon", "Swordsman", "Underwater", "Portal World"
+    },
+    Acts = {
+        "Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"
+    },
+    Difficulties = {
+        "Normal", "Hard", "Nightmare"
+    },
     
-    -- รายชื่อปุ่มคีย์ลัดที่มีให้เลือกในเมนูตั้งค่า
+    -- รายชื่อตู้สุ่มทั้งหมดในเกม Anime Defenders (ครบทุกประเภท)
+    Banners = {
+        "Banner 1 (Limited)",
+        "Banner 2 (Limited)",
+        "Standard Banner",
+        "Wish Banner",
+        "Exclusive Banner",
+        "Event Banner"
+    },
+    
     KeybindOptions = {
         {Name = "Right Ctrl", Key = Enum.KeyCode.RightControl},
         {Name = "Right Shift", Key = Enum.KeyCode.RightShift},
@@ -41,10 +56,9 @@ local SystemState = {
     SelectedWorld = "Windmill",
     SelectedAct = "Act 1",
     SelectedDifficulty = "Normal",
-    SelectedBanner = "Banner 1",
+    SelectedBanner = "Banner 1 (Limited)",
     SummonAmount = 10,
     
-    -- ปุ่มคีย์ลัดซ่อน/แสดงเมนู (ค่าเริ่มต้น: RightControl)
     ToggleKey = Enum.KeyCode.RightControl,
     IsUIVisible = true,
 }
@@ -67,13 +81,13 @@ if not targetParent then pcall(function() targetParent = LocalPlayer:WaitForChil
 ScreenGui.Parent = targetParent
 
 -- =============================================================================
--- [6] โครงสร้าง GUI หลัก และปุ่ม Floating Toggle Button (สำหรับมือถือ)
+-- [6] โครงสร้าง GUI หลัก และปุ่ม Floating Toggle Button
 -- =============================================================================
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 480, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -240, 0.5, -180)
+MainFrame.Size = UDim2.new(0, 490, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -245, 0.5, -190)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -89,7 +103,7 @@ MainStroke.Color = Color3.fromRGB(50, 50, 70)
 MainStroke.Thickness = 1.5
 MainStroke.Parent = MainFrame
 
--- ปุ่มลอยซ่อน/แสดงเมนูบนหน้าจอ (สำหรับแตะจอมือถือ)
+-- ปุ่มลอยซ่อน/แสดงเมนูบนหน้าจอ
 local MobileToggleBtn = Instance.new("TextButton")
 MobileToggleBtn.Name = "MobileToggleBtn"
 MobileToggleBtn.Size = UDim2.new(0, 44, 0, 44)
@@ -110,7 +124,6 @@ MobileStroke.Color = Color3.fromRGB(99, 102, 241)
 MobileStroke.Thickness = 1.5
 MobileStroke.Parent = MobileToggleBtn
 
--- ฟังก์ชันซ่อน/แสดงเมนู (Toggle Visibility)
 local function toggleUIVisibility()
     SystemState.IsUIVisible = not SystemState.IsUIVisible
     MainFrame.Visible = SystemState.IsUIVisible
@@ -118,7 +131,6 @@ end
 
 MobileToggleBtn.MouseButton1Click:Connect(toggleUIVisibility)
 
--- ตรวจจับการกดปุ่มคีย์บอร์ด (RightControl หรือปุ่มที่ตั้งค่าไว้)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
         if input.KeyCode == SystemState.ToggleKey then
@@ -130,7 +142,7 @@ end)
 -- Sidebar ฝั่งซ้าย
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
-Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.Size = UDim2.new(0, 135, 1, 0)
 Sidebar.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
@@ -161,8 +173,8 @@ TabListLayout.Padding = UDim.new(0, 6)
 
 local ContentArea = Instance.new("Frame")
 ContentArea.Name = "ContentArea"
-ContentArea.Size = UDim2.new(1, -145, 1, -16)
-ContentArea.Position = UDim2.new(0, 138, 0, 8)
+ContentArea.Size = UDim2.new(1, -150, 1, -16)
+ContentArea.Position = UDim2.new(0, 142, 0, 8)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = MainFrame
 
@@ -234,7 +246,7 @@ TabButtons["Farm & Stage"].BackgroundColor3 = Color3.fromRGB(99, 102, 241)
 TabButtons["Farm & Stage"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 -- =============================================================================
--- [8] Components (Option Selectors & Toggles)
+-- [8] Components (Option Selectors, Custom TextInputs & Toggles)
 -- =============================================================================
 
 local function addSectionTitle(parentPage, text)
@@ -249,9 +261,56 @@ local function addSectionTitle(parentPage, text)
     Label.Parent = parentPage
 end
 
+-- ช่องพิมพ์ชื่อ Custom Input (สำหรับพิมพ์ชื่อ Banner หรือชื่อแมพแบบกำหนดเอง)
+local function addCustomInput(parentPage, title, placeholder, onFocusLost)
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 56)
+    Frame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+    Frame.BorderSizePixel = 0
+    Frame.Parent = parentPage
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Frame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -16, 0, 16)
+    Label.Position = UDim2.new(0, 8, 0, 6)
+    Label.BackgroundTransparency = 1
+    Label.Text = title
+    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
+    Label.TextSize = 11
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Frame
+
+    local InputBox = Instance.new("TextBox")
+    InputBox.Size = UDim2.new(1, -16, 0, 24)
+    InputBox.Position = UDim2.new(0, 8, 0, 24)
+    InputBox.BackgroundColor3 = Color3.fromRGB(36, 36, 50)
+    InputBox.Text = ""
+    InputBox.PlaceholderText = placeholder
+    InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    InputBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
+    InputBox.TextSize = 11
+    InputBox.Font = Enum.Font.GothamMedium
+    InputBox.ClearTextOnFocus = false
+    InputBox.Parent = Frame
+
+    local InputCorner = Instance.new("UICorner")
+    InputCorner.CornerRadius = UDim.new(0, 6)
+    InputCorner.Parent = InputBox
+
+    InputBox.FocusLost:Connect(function(enterPressed)
+        if InputBox.Text ~= "" then
+            onFocusLost(InputBox.Text)
+        end
+    end)
+end
+
 local function addOptionSelector(parentPage, title, optionsList, currentChoice, onSelect)
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 58)
+    Frame.Size = UDim2.new(1, 0, 0, 64)
     Frame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
     Frame.BorderSizePixel = 0
     Frame.Parent = parentPage
@@ -271,27 +330,31 @@ local function addOptionSelector(parentPage, title, optionsList, currentChoice, 
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Frame
 
-    local Grid = Instance.new("Frame")
-    Grid.Size = UDim2.new(1, -16, 0, 26)
-    Grid.Position = UDim2.new(0, 8, 0, 26)
-    Grid.BackgroundTransparency = 1
-    Grid.Parent = Frame
+    local ScrollOpt = Instance.new("ScrollingFrame")
+    ScrollOpt.Size = UDim2.new(1, -16, 0, 32)
+    ScrollOpt.Position = UDim2.new(0, 8, 0, 26)
+    ScrollOpt.BackgroundTransparency = 1
+    ScrollOpt.BorderSizePixel = 0
+    ScrollOpt.ScrollBarThickness = 2
+    ScrollOpt.Parent = Frame
 
-    local GridLayout = Instance.new("UIGridLayout")
-    GridLayout.Parent = Grid
-    GridLayout.CellSize = UDim2.new(1 / #optionsList, -4, 1, 0)
-    GridLayout.CellPadding = UDim2.new(0, 4, 0, 0)
+    local Layout = Instance.new("UIListLayout")
+    Layout.Parent = ScrollOpt
+    Layout.FillDirection = Enum.FillDirection.Horizontal
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Layout.Padding = UDim.new(0, 4)
 
     local selected = currentChoice
 
     for _, name in ipairs(optionsList) do
         local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(0, 95, 1, 0)
         Btn.BackgroundColor3 = (name == selected) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(36, 36, 50)
         Btn.Text = name
         Btn.TextColor3 = Color3.fromRGB(240, 240, 255)
         Btn.TextSize = 10
         Btn.Font = Enum.Font.GothamMedium
-        Btn.Parent = Grid
+        Btn.Parent = ScrollOpt
 
         local BtnCorner = Instance.new("UICorner")
         BtnCorner.CornerRadius = UDim.new(0, 6)
@@ -299,7 +362,7 @@ local function addOptionSelector(parentPage, title, optionsList, currentChoice, 
 
         Btn.MouseButton1Click:Connect(function()
             selected = name
-            for _, child in ipairs(Grid:GetChildren()) do
+            for _, child in ipairs(ScrollOpt:GetChildren()) do
                 if child:IsA("TextButton") then
                     child.BackgroundColor3 = (child.Text == selected) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(36, 36, 50)
                 end
@@ -307,6 +370,8 @@ local function addOptionSelector(parentPage, title, optionsList, currentChoice, 
             onSelect(selected)
         end)
     end
+
+    ScrollOpt.CanvasSize = UDim2.new(0, #optionsList * 99, 0, 0)
 end
 
 local function addToggleCard(parentPage, title, subtitle, stateKey)
@@ -386,13 +451,14 @@ end
 -- [9] เติมเนื้อหาในแต่ละ Tab
 -- =============================================================================
 
+-- --- Farm & Stage Tab ---
 addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP")
-addOptionSelector(StageTab, "เลือกแมพ (World):", {"Windmill", "Cursed", "Demon", "Swordsman"}, "Windmill", function(val)
+addOptionSelector(StageTab, "เลือกแมพ (World):", GameData.Worlds, "Windmill", function(val)
     SystemState.SelectedWorld = val
 end)
 
 addSectionTitle(StageTab, "📜 SELECT ACT & DIFFICULTY")
-addOptionSelector(StageTab, "เลือก Act:", {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"}, "Act 1", function(val)
+addOptionSelector(StageTab, "เลือก Act:", GameData.Acts, "Act 1", function(val)
     SystemState.SelectedAct = val
 end)
 
@@ -404,15 +470,23 @@ addSectionTitle(StageTab, "⚡ AUTO CONTROLS")
 addToggleCard(StageTab, "Auto Join Selected Stage", "ยิง ActionRemote สั่งเข้าเล่นด่านตามที่เลือก", "AutoReplay")
 addToggleCard(StageTab, "Auto Farm Units", "ยิง ActionRemote สั่งวางยูนิตและสู้ในด่าน", "AutoFarm")
 
-addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION")
-addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", {"Banner 1", "Banner 2", "Wish"}, "Banner 1", function(val)
+-- --- Summon Tab: เพิ่ม Banner ครบทุกประเภท + ช่องพิมพ์ชื่อ Custom ---
+addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION (ครบทุกตู้)")
+addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", GameData.Banners, "Banner 1 (Limited)", function(val)
     SystemState.SelectedBanner = val
+    print("เลือกตู้: ", val)
+end)
+
+-- ช่องพิมพ์ชื่อ Custom Banner หากเป็นตู้อัปเดตใหม่
+addCustomInput(SummonTab, "✏️ พิมพ์ชื่อ Banner เอง (Custom Banner):", "เช่น Special_Banner_Season2", function(text)
+    SystemState.SelectedBanner = text
+    print("ตั้งค่า Custom Banner: ", text)
 end)
 
 addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
 addToggleCard(SummonTab, "Auto Summon Units", "ยิง ActionRemote สั่งสุ่มยูนิตตามตู้ที่เลือก", "AutoSummon")
 
--- --- Settings Tab: ตั้งค่า Keybind ซ่อน/แสดง UI ---
+-- --- Settings Tab ---
 addSectionTitle(SettingsTab, "⌨️ KEYBIND CONFIGURATION")
 
 local keyNames = {}
@@ -422,7 +496,6 @@ addOptionSelector(SettingsTab, "เลือกปุ่มคีย์ลัด
     for _, opt in ipairs(GameData.KeybindOptions) do
         if opt.Name == val then
             SystemState.ToggleKey = opt.Key
-            print("เปลี่ยนปุ่มคีย์ลัดเป็น: ", val)
         end
     end
 end)
@@ -431,7 +504,7 @@ addSectionTitle(SettingsTab, "⚙️ SYSTEM SETTINGS")
 addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านเมื่อแพ้", "AutoLeaveOnDefeat")
 
 -- =============================================================================
--- [10] ลูปประมวลผลยิง ActionRemote (Action Dispatcher Loop)
+-- [10] ลูปประมวลผลยิง ActionRemote
 -- =============================================================================
 
 task.spawn(function()
@@ -457,6 +530,7 @@ task.spawn(function()
                         Banner = SystemState.SelectedBanner,
                         Amount = SystemState.SummonAmount
                     })
+                    print("[Summoning]: Banner = ", SystemState.SelectedBanner)
                 end
             end)
         end
@@ -471,4 +545,4 @@ task.spawn(function()
     end
 end)
 
-print("Anime Defenders Script with RightControl Keybind Loaded!")
+print("Anime Defenders All-Banner Script System Loaded!")
