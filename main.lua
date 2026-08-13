@@ -1,9 +1,9 @@
 --[[
     =============================================================================
-    Anime Defenders - Professional Multi-Tab & Hierarchical Stage UI
+    Anime Defenders - Professional Multi-Tab Script (Real Remote Integration)
     =============================================================================
-    หัวข้อ: การออกแบบ UI แบบ Tab Navigation และระบบคัดเลือกด่านแบบลำดับชั้น (World -> Act -> Difficulty)
-    เป้าหมาย: ใช้สำหรับศึกษาระบบ UI ซับซ้อนระดับโปรและการจัดหมวดหมู่ข้อมูลในเกม Tower Defense
+    หัวข้อ: การใช้ Action Dispatcher (ReplicatedStorage.Actions.Action) ในเกมจริง
+    เป้าหมาย: นำรายชื่อ Remote จริงของเกม Anime Defenders มาเชื่อมต่อกับ UI และระบบ Automation
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -14,77 +14,47 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 
--- [2] โครงสร้างข้อมูลด่านและตัวเลือกทั้งหมด (Hierarchical Data Structure)
+-- [2] โครงสร้างข้อมูลด่านและตู้สุ่ม
 local GameData = {
-    Worlds = {
-        "Windmill Village",
-        "Cursed Academy",
-        "Demon City",
-        "Swordsman City",
-        "Underwater City"
-    },
-    Acts = {
-        "Act 1", "Act 2", "Act 3",
-        "Act 4", "Act 5", "Act 6", "Infinite"
-    },
-    Difficulties = {
-        "Normal", "Hard", "Nightmare"
-    },
-    Banners = {
-        "Banner 1 (Limited)",
-        "Banner 2 (Standard)",
-        "Wish Banner"
-    }
+    Worlds = {"Windmill", "Cursed", "Demon", "Swordsman", "Underwater"},
+    Acts = {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6", "Infinite"},
+    Difficulties = {"Normal", "Hard", "Nightmare"},
+    Banners = {"Banner 1", "Banner 2", "Wish"}
 }
 
--- [3] ตัวแปรจัดการสถานะระบบ (System State & Selection)
+-- [3] ตัวแปรจัดการสถานะระบบ (System State & User Choices)
 local SystemState = {
-    -- สวิตช์การทำงาน
     AutoFarm = false,
     AutoSummon = false,
     AutoReplay = false,
     AutoLeaveOnDefeat = false,
 
-    -- ค่าที่เลือกเจาะจง (Selected Options)
-    SelectedWorld = "Windmill Village",
+    SelectedWorld = "Windmill",
     SelectedAct = "Act 1",
     SelectedDifficulty = "Normal",
-    SelectedBanner = "Banner 1 (Limited)",
+    SelectedBanner = "Banner 1",
     SummonAmount = 10,
 }
 
--- [4] การกำหนดพาธ RemoteEvent สำหรับเกม Anime Defenders
-local Remotes = {
-    JoinStage = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("join_stage", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("join_stage"),
-    PlaceUnit  = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("place_unit", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("place_unit"),
-    Summon     = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("summon", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("summon"),
-    Replay     = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("retry", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("retry"),
-}
+-- [4] การเชื่อมต่อกับ Remote จริงของเกม Anime Defenders (จากสแกนเนอร์)
+local ActionRemote = ReplicatedStorage:WaitForChild("Actions", 5) and ReplicatedStorage.Actions:WaitForChild("Action", 5)
+local RemotesFolder = ReplicatedStorage:WaitForChild("Remotes", 5)
 
 -- [5] ทำความสะอาด UI เก่าก่อนสร้างใหม่
-local existingUI = CoreGui:FindFirstChild("AnimeDefenders_ProUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_ProUI")
-if existingUI then
-    existingUI:Destroy()
-end
+local existingUI = CoreGui:FindFirstChild("AnimeDefenders_RealUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_RealUI")
+if existingUI then existingUI:Destroy() end
 
--- สร้าง ScreenGui หลัก
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AnimeDefenders_ProUI"
+ScreenGui.Name = "AnimeDefenders_RealUI"
 ScreenGui.ResetOnSpawn = false
 
 local targetParent = nil
-if gethui then
-    targetParent = gethui()
-else
-    local success, _ = pcall(function() targetParent = CoreGui end)
-    if not success or not targetParent then
-        targetParent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-end
+if gethui then pcall(function() targetParent = gethui() end) end
+if not targetParent then pcall(function() targetParent = LocalPlayer:WaitForChild("PlayerGui") end) end
 ScreenGui.Parent = targetParent
 
 -- =============================================================================
--- [6] การออกแบบกรอบหลักแบบ มี Sidebar Navigation Tabs
+-- [6] โครงสร้าง GUI แบบ Multi-Tab Navigation
 -- =============================================================================
 
 local MainFrame = Instance.new("Frame")
@@ -106,7 +76,7 @@ MainStroke.Color = Color3.fromRGB(50, 50, 70)
 MainStroke.Thickness = 1.5
 MainStroke.Parent = MainFrame
 
--- Sidebar ฝั่งซ้ายสำหรับเลือก Tab
+-- Sidebar ฝั่งซ้าย
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
 Sidebar.Size = UDim2.new(0, 130, 1, 0)
@@ -118,7 +88,6 @@ local SidebarCorner = Instance.new("UICorner")
 SidebarCorner.CornerRadius = UDim.new(0, 12)
 SidebarCorner.Parent = Sidebar
 
--- ชื่อสคริปต์ใน Sidebar
 local LogoTitle = Instance.new("TextLabel")
 LogoTitle.Size = UDim2.new(1, 0, 0, 45)
 LogoTitle.BackgroundTransparency = 1
@@ -128,7 +97,6 @@ LogoTitle.TextSize = 16
 LogoTitle.Font = Enum.Font.GothamBold
 LogoTitle.Parent = Sidebar
 
--- คอนเทนเนอร์ใส่ปุ่ม Tab
 local TabButtonContainer = Instance.new("Frame")
 TabButtonContainer.Size = UDim2.new(1, -16, 1, -55)
 TabButtonContainer.Position = UDim2.new(0, 8, 0, 45)
@@ -140,7 +108,6 @@ TabListLayout.Parent = TabButtonContainer
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.Padding = UDim.new(0, 6)
 
--- พื้นที่แสดงผลเนื้อหาฝั่งขวา (Content Area)
 local ContentArea = Instance.new("Frame")
 ContentArea.Name = "ContentArea"
 ContentArea.Size = UDim2.new(1, -145, 1, -16)
@@ -149,14 +116,13 @@ ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = MainFrame
 
 -- =============================================================================
--- [7] ระบบสลับหน้า Tab (Tab Switching Logic)
+-- [7] ระบบจัดการหน้า Tab
 -- =============================================================================
 
 local Tabs = {}
 local TabButtons = {}
 
 local function createTab(tabName, tabIcon)
-    -- สร้างหน้า Content ของ Tab
     local Page = Instance.new("ScrollingFrame")
     Page.Name = tabName .. "_Page"
     Page.Size = UDim2.new(1, 0, 1, 0)
@@ -176,7 +142,6 @@ local function createTab(tabName, tabIcon)
         Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 15)
     end)
 
-    -- สร้างปุ่ม Tab บน Sidebar
     local TabBtn = Instance.new("TextButton")
     TabBtn.Size = UDim2.new(1, 0, 0, 36)
     TabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
@@ -199,9 +164,7 @@ local function createTab(tabName, tabIcon)
     TabButtons[tabName] = TabBtn
 
     TabBtn.MouseButton1Click:Connect(function()
-        for name, page in pairs(Tabs) do
-            page.Visible = (name == tabName)
-        end
+        for name, page in pairs(Tabs) do page.Visible = (name == tabName) end
         for name, btn in pairs(TabButtons) do
             btn.BackgroundColor3 = (name == tabName) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(30, 30, 42)
             btn.TextColor3 = (name == tabName) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 190)
@@ -211,18 +174,16 @@ local function createTab(tabName, tabIcon)
     return Page
 end
 
--- สร้าง 3 Tab หลัก
 local StageTab  = createTab("Farm & Stage", "⚔️")
 local SummonTab = createTab("Summon", "🎯")
 local SettingsTab = createTab("Settings", "⚙️")
 
--- เปิด Tab แรกเป็นค่าเริ่มต้น
 Tabs["Farm & Stage"].Visible = true
 TabButtons["Farm & Stage"].BackgroundColor3 = Color3.fromRGB(99, 102, 241)
 TabButtons["Farm & Stage"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 -- =============================================================================
--- [8] ฟังก์ชันสร้าง Component ตัวเลือก (Dropdown & Buttons Grid)
+-- [8] Components (Option Selectors & Toggles)
 -- =============================================================================
 
 local function addSectionTitle(parentPage, text)
@@ -371,73 +332,83 @@ local function addToggleCard(parentPage, title, subtitle, stateKey)
 end
 
 -- =============================================================================
--- [9] ใส่เนื้อหาในแต่ละ Tab (Populating Tab Contents)
+-- [9] เติมเนื้อหาในแต่ละ Tab
 -- =============================================================================
 
--- --- TAB 1: Farm & Stage ---
 addSectionTitle(StageTab, "🗺️ SELECT WORLD & MAP")
 addOptionSelector(StageTab, "เลือกแมพ (World):", {"Windmill", "Cursed", "Demon", "Swordsman"}, "Windmill", function(val)
     SystemState.SelectedWorld = val
-    print("Selected World: ", val)
 end)
 
 addSectionTitle(StageTab, "📜 SELECT ACT & DIFFICULTY")
 addOptionSelector(StageTab, "เลือก Act:", {"Act 1", "Act 2", "Act 3", "Act 4", "Act 5", "Act 6"}, "Act 1", function(val)
     SystemState.SelectedAct = val
-    print("Selected Act: ", val)
 end)
 
-addOptionSelector(StageTab, "เลือกระดับความยาก (Difficulty):", GameData.Difficulties, "Normal", function(val)
+addOptionSelector(StageTab, "เลือกระดับความยาก:", GameData.Difficulties, "Normal", function(val)
     SystemState.SelectedDifficulty = val
-    print("Selected Difficulty: ", val)
 end)
 
 addSectionTitle(StageTab, "⚡ AUTO CONTROLS")
-addToggleCard(StageTab, "Auto Join Selected Stage", "วาร์ปเข้าด่านตาม World + Act + Difficulty ที่เลือก", "AutoReplay")
-addToggleCard(StageTab, "Auto Farm Units", "สั่งวางยูนิตและต่อสู้อัตโนมัติ", "AutoFarm")
+addToggleCard(StageTab, "Auto Join Selected Stage", "ยิง ActionRemote สั่งเข้าเล่นด่านตามที่เลือก", "AutoReplay")
+addToggleCard(StageTab, "Auto Farm Units", "ยิง ActionRemote สั่งวางยูนิตและสู้ในด่าน", "AutoFarm")
 
--- --- TAB 2: Summon ---
 addSectionTitle(SummonTab, "🎯 SUMMON BANNER SELECTION")
 addOptionSelector(SummonTab, "เลือกตู้สุ่ม (Banner):", {"Banner 1", "Banner 2", "Wish"}, "Banner 1", function(val)
     SystemState.SelectedBanner = val
-    print("Selected Banner: ", val)
 end)
 
 addSectionTitle(SummonTab, "⚡ SUMMON CONTROLS")
-addToggleCard(SummonTab, "Auto Summon Units", "สุ่มยูนิตตามตู้ที่เลือกไว้อัตโนมัติ", "AutoSummon")
+addToggleCard(SummonTab, "Auto Summon Units", "ยิง ActionRemote สั่งสุ่มยูนิตตามตู้ที่เลือก", "AutoSummon")
 
--- --- TAB 3: Settings ---
 addSectionTitle(SettingsTab, "⚙️ SYSTEM SETTINGS")
-addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านให้อัตโนมัติเมื่อแพ้", "AutoLeaveOnDefeat")
+addToggleCard(SettingsTab, "Auto Leave on Defeat", "ออกจากด่านเมื่อแพ้", "AutoLeaveOnDefeat")
 
 -- =============================================================================
--- [10] ลูปส่งสัญญาณ RemoteEvent แบบสมบูรณ์ (World + Act + Difficulty)
+-- [10] ลูปประมวลผลยิง ActionRemote (Action Dispatcher Loop)
 -- =============================================================================
 
 task.spawn(function()
     while true do
         task.wait(1.5)
 
-        -- ยิงคำสั่งเข้าเล่นด่าน พร้อมส่ง World + Act + Difficulty ไปพร้อมกัน!
+        -- 1. ยิง ActionRemote เข้าด่านตาม World + Act + Difficulty
         if SystemState.AutoReplay then
             pcall(function()
-                if Remotes.JoinStage then
-                    Remotes.JoinStage:FireServer(SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty)
-                    print(string.format("[RemoteEvent]: Joining -> %s | %s | %s", SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty))
+                if ActionRemote then
+                    -- โครงสร้าง Action Dispatcher ของ Anime Defenders
+                    ActionRemote:FireServer("JoinStage", {
+                        World = SystemState.SelectedWorld,
+                        Act = SystemState.SelectedAct,
+                        Difficulty = SystemState.SelectedDifficulty
+                    })
+                    print(string.format("[Action Dispatcher]: Joined -> %s | %s | %s", SystemState.SelectedWorld, SystemState.SelectedAct, SystemState.SelectedDifficulty))
                 end
             end)
         end
 
-        -- ยิงคำสั่งสุ่มยูนิต
+        -- 2. ยิง ActionRemote สุ่มตัวละครตาม Banner ที่เลือก
         if SystemState.AutoSummon then
             pcall(function()
-                if Remotes.Summon then
-                    Remotes.Summon:FireServer(SystemState.SelectedBanner, SystemState.SummonAmount)
-                    print(string.format("[RemoteEvent]: Summoning 10x from -> %s", SystemState.SelectedBanner))
+                if ActionRemote then
+                    ActionRemote:FireServer("Summon", {
+                        Banner = SystemState.SelectedBanner,
+                        Amount = SystemState.SummonAmount
+                    })
+                    print(string.format("[Action Dispatcher]: Summoning from -> %s", SystemState.SelectedBanner))
+                end
+            end)
+        end
+
+        -- 3. ยิง ActionRemote วางยูนิต
+        if SystemState.AutoFarm then
+            pcall(function()
+                if ActionRemote then
+                    ActionRemote:FireServer("PlaceUnit", {})
                 end
             end)
         end
     end
 end)
 
-print("Anime Defenders Multi-Tab Hierarchical UI Loaded!")
+print("Anime Defenders Action-Dispatcher Script Loaded!")
