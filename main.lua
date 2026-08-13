@@ -2,8 +2,8 @@
     =============================================================================
     Anime Defenders - Modern Educational Script & Premium UI System
     =============================================================================
-    หัวข้อ: การออกแบบ Modern UX/UI ใน Roblox, การทำ Toggle Switch และระบบ Event Automation
-    เป้าหมาย: ใช้สำหรับการเรียนรู้โครงสร้าง UI ระดับสูง และการวางระบบควบคุมการทำงานในเกม
+    หัวข้อ: การออกแบบ Modern UX/UI ใน Roblox, การทำ Toggle Switch และระบบ RemoteEvent Automation
+    เป้าหมาย: ใช้สำหรับการเรียนรู้โครงสร้าง UI และการดักจับ/ใช้งาน RemoteEvent ในเกม Tower Defense
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -21,7 +21,16 @@ local SystemState = {
     AutoReplay = false,
 }
 
--- [3] ทำความสะอาด UI เก่าก่อนสร้างใหม่ (Prevent Duplicates)
+-- [3] การกำหนดพาธ RemoteEvent สำหรับเกม Anime Defenders
+-- (สามารถแก้ไขเปลี่ยนชื่อโฟลเดอร์/ชื่อ Remote ให้ตรงกับที่ส่องเจอในเกมได้ที่นี่)
+local Remotes = {
+    -- ตัวอย่างตำแหน่ง RemoteCommon ในเกมแนวนี้
+    PlaceUnit = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("place_unit", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("place_unit"),
+    Summon = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("summon", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("summon"),
+    Replay = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("retry", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("retry"),
+}
+
+-- [4] ทำความสะอาด UI เก่าก่อนสร้างใหม่ (Prevent Duplicates)
 local existingUI = CoreGui:FindFirstChild("AnimeDefenders_PremiumUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_PremiumUI")
 if existingUI then
     existingUI:Destroy()
@@ -47,7 +56,7 @@ end
 ScreenGui.Parent = targetParent
 
 -- =============================================================================
--- [4] การออกแบบโครงสร้างหลักของ UI (Main Frame & Glassmorphism Theme)
+-- [5] การออกแบบโครงสร้างหลักของ UI (Main Frame & Glassmorphism Theme)
 -- =============================================================================
 
 -- กรอบหลัก (Main Window)
@@ -113,7 +122,7 @@ local SubtitleText = Instance.new("TextLabel")
 SubtitleText.Size = UDim2.new(1, -70, 0, 14)
 SubtitleText.Position = UDim2.new(0, 34, 0.6, -2)
 SubtitleText.BackgroundTransparency = 1
-SubtitleText.Text = "Educational Auto System v1.0"
+SubtitleText.Text = "RemoteEvent Automation v1.0"
 SubtitleText.TextColor3 = Color3.fromRGB(130, 130, 160)
 SubtitleText.TextSize = 10
 SubtitleText.Font = Enum.Font.GothamMedium
@@ -140,7 +149,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- =============================================================================
--- [5] คอนเทนเนอร์ใส่รายการเมนู (Content Area & Container)
+-- [6] คอนเทนเนอร์ใส่รายการเมนู (Content Area & Container)
 -- =============================================================================
 
 local ContentArea = Instance.new("Frame")
@@ -156,7 +165,7 @@ UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 12)
 
 -- =============================================================================
--- [6] ฟังก์ชันสร้าง Toggle Card สไตล์ Modern UX
+-- [7] ฟังก์ชันสร้าง Toggle Card สไตล์ Modern UX
 -- =============================================================================
 
 local function createToggleCard(title, subtitle, stateKey, callback)
@@ -249,47 +258,68 @@ local function createToggleCard(title, subtitle, stateKey, callback)
 end
 
 -- =============================================================================
--- [7] สร้างรายการเมนูสคริปต์จริง (Auto Farm / Auto Buy / Auto Replay)
+-- [8] สร้างรายการเมนูสคริปต์จริง (Auto Farm / Auto Buy / Auto Replay)
 -- =============================================================================
 
 -- 1. Auto Farm Card
-createToggleCard("Auto Farm Units", "ระบบวางยูนิตและต่อสู้ให้อัตโนมัติ", "AutoFarm", function(isOn)
-    print("Auto Farm State Changed: ", isOn)
+createToggleCard("Auto Place / Farm", "ระบบยิง Remote สั่งวางยูนิตอัตโนมัติ", "AutoFarm", function(isOn)
+    print("Auto Farm State: ", isOn)
 end)
 
 -- 2. Auto Buy / Summon Card
-createToggleCard("Auto Summon", "ระบบซื้อ/สุ่มยูนิตให้อัตโนมัติ", "AutoSummon", function(isOn)
-    print("Auto Summon State Changed: ", isOn)
+createToggleCard("Auto Summon / Buy", "ระบบยิง Remote สั่งสุ่มยูนิตอัตโนมัติ", "AutoSummon", function(isOn)
+    print("Auto Summon State: ", isOn)
 end)
 
 -- 3. Auto Replay Card
-createToggleCard("Auto Play Again", "ระบบเริ่มเล่นรอบใหม่อัตโนมัติเมื่อจบเกม", "AutoReplay", function(isOn)
-    print("Auto Replay State Changed: ", isOn)
+createToggleCard("Auto Replay Match", "ระบบยิง Remote สั่งเริ่มด่านใหม่อัตโนมัติ", "AutoReplay", function(isOn)
+    print("Auto Replay State: ", isOn)
 end)
 
 -- =============================================================================
--- [8] ลูปประมวลผลเบื้องหลัง (Background Logic Processing Loop)
+-- [9] ลูปยิงสัญญาณ RemoteEvent (RemoteEvent Automation Loop)
 -- =============================================================================
 
 task.spawn(function()
     while true do
         task.wait(1.5)
 
-        -- 1. ลูปทำงาน Auto Farm
+        -- 1. ยิง Remote วางยูนิตเมื่อเปิด AutoFarm
         if SystemState.AutoFarm then
-            print("[System]: Auto Farming Active...")
+            pcall(function()
+                if Remotes.PlaceUnit then
+                    Remotes.PlaceUnit:FireServer()
+                    print("[RemoteEvent]: Sent PlaceUnit Signal to Server!")
+                else
+                    print("[RemoteEvent Warning]: Remote 'place_unit' not found in ReplicatedStorage yet.")
+                end
+            end)
         end
 
-        -- 2. ลูปทำงาน Auto Summon
+        -- 2. ยิง Remote สุ่มตัวละครเมื่อเปิด AutoSummon
         if SystemState.AutoSummon then
-            print("[System]: Auto Summoning Active...")
+            pcall(function()
+                if Remotes.Summon then
+                    Remotes.Summon:FireServer()
+                    print("[RemoteEvent]: Sent Summon Signal to Server!")
+                else
+                    print("[RemoteEvent Warning]: Remote 'summon' not found in ReplicatedStorage yet.")
+                end
+            end)
         end
 
-        -- 3. ลูปทำงาน Auto Replay
+        -- 3. ยิง Remote เริ่มเกมใหม่เมื่อเปิด AutoReplay
         if SystemState.AutoReplay then
-            print("[System]: Auto Replay Active...")
+            pcall(function()
+                if Remotes.Replay then
+                    Remotes.Replay:FireServer()
+                    print("[RemoteEvent]: Sent Replay Signal to Server!")
+                else
+                    print("[RemoteEvent Warning]: Remote 'retry' not found in ReplicatedStorage yet.")
+                end
+            end)
         end
     end
 end)
 
-print("Anime Defenders Premium UI Loaded Successfully!")
+print("Anime Defenders RemoteEvent Automation UI Loaded!")
