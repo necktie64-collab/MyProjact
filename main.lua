@@ -1,9 +1,9 @@
 --[[
     =============================================================================
-    Anime Defenders - Modern Educational Script & Multi-Selection UI
+    Anime Defenders - Modern Educational Script & Explicit Target Selection System
     =============================================================================
-    หัวข้อ: การทำระบบ Dropdown / Multi-Option Selection สำหรับเลือก Banner และเลือกด่าน
-    เป้าหมาย: ใช้สำหรับศึกษาวิธีส่ง Argument (ค่าพารามิเตอร์) ไปพร้อมกับ RemoteEvent
+    หัวข้อ: การทำระบบเลือกจุดหมาย (Explicit Selection) และการระบุเป้าหมายเจาะจงในเกม
+    เป้าหมาย: ใช้สำหรับการเรียนรู้การรับค่า Input/Dropdown เพื่อระบุการวาร์ปและการสุ่มยูนิต
 ]]
 
 -- [1] เรียกใช้งาน Services ที่จำเป็น
@@ -14,25 +14,31 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 
--- [2] ตัวแปรจัดการสถานะและตัวเลือก (State & Selection Management)
+-- [2] ตัวแปรระบุเป้าหมายอย่างชัดเจน (Explicit User Choices)
 local SystemState = {
     AutoFarm = false,
     AutoSummon = false,
     AutoReplay = false,
     
-    -- ค่าตัวเลือกเริ่มต้นสำหรับ Banner และ ด่าน (Map/Stage)
-    SelectedBanner = "Banner 1", -- ตัวเลือก: "Banner 1", "Banner 2", "Wish Banner"
-    SelectedStage = "Stage 1",   -- ตัวเลือก: "Stage 1", "Stage 2", "Infinite Mode"
+    -- ผู้เล่นกำหนดเจาะจงว่าจะไปด่านไหน และสุ่มตู้ไหน
+    SelectedWorld = "Windmill Village", -- ด่าน/แมพ ที่เลือก
+    SelectedBanner = "Limited Banner",  -- ตู้สุ่มที่เลือก
+    SummonAmount = 10,                 -- จำนวนสุ่ม (1 หรือ 10)
 }
+
+-- รายชื่อด่านและตู้สุ่มที่มีให้เลือกในระบบ
+local AvailableWorlds = {"Windmill Village", "Demon City", "Planet Namek", "Infinite Arena"}
+local AvailableBanners = {"Limited Banner", "Standard Banner", "Wish Banner"}
 
 -- [3] การกำหนดพาธ RemoteEvent สำหรับเกม Anime Defenders
 local Remotes = {
     PlaceUnit = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("place_unit", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("place_unit"),
     Summon    = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("summon", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("summon"),
     Replay    = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("retry", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("retry"),
+    Teleport  = pcall(function() return ReplicatedStorage:WaitForChild("networks", 2):WaitForChild("teleport_world", 2) end) and ReplicatedStorage:FindFirstChild("networks") and ReplicatedStorage.networks:FindFirstChild("teleport_world"),
 }
 
--- [4] ทำความสะอาด UI เก่าก่อนสร้างใหม่ (Prevent Duplicates)
+-- [4] ทำความสะอาด UI เก่าก่อนสร้างใหม่
 local existingUI = CoreGui:FindFirstChild("AnimeDefenders_PremiumUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AnimeDefenders_PremiumUI")
 if existingUI then
     existingUI:Destroy()
@@ -62,8 +68,8 @@ ScreenGui.Parent = targetParent
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 370, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -185, 0.5, -240)
+MainFrame.Size = UDim2.new(0, 380, 0, 520)
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -118,7 +124,7 @@ local SubtitleText = Instance.new("TextLabel")
 SubtitleText.Size = UDim2.new(1, -70, 0, 14)
 SubtitleText.Position = UDim2.new(0, 34, 0.6, -2)
 SubtitleText.BackgroundTransparency = 1
-SubtitleText.Text = "Multi-Option & Remote System v2.0"
+SubtitleText.Text = "Explicit Target & Map Selection v3.0"
 SubtitleText.TextColor3 = Color3.fromRGB(130, 130, 160)
 SubtitleText.TextSize = 10
 SubtitleText.Font = Enum.Font.GothamMedium
@@ -144,7 +150,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- =============================================================================
--- [6] Scrolling Frame สำหรับใส่เมนูจำนวนมาก
+-- [6] Scrolling Frame สำหรับใส่หมวดหมู่การตั้งค่า
 -- =============================================================================
 
 local ScrollContainer = Instance.new("ScrollingFrame")
@@ -166,13 +172,26 @@ UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 20)
 end)
 
+-- ฟังก์ชันสร้าง Section Header (หัวข้อแบ่งหมวดหมู่)
+local function createSectionHeader(titleText)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 24)
+    Label.BackgroundTransparency = 1
+    Label.Text = titleText
+    Label.TextColor3 = Color3.fromRGB(160, 160, 200)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ScrollContainer
+end
+
 -- =============================================================================
--- [7] ฟังก์ชันสร้าง Selector / Option Card (ตัวเลือก Banner / ด่าน)
+-- [7] ฟังก์ชันสร้าง Option Selector (ระบุตู้สุ่ม / ระบุแมพที่จะไป)
 -- =============================================================================
 
-local function createOptionSelector(title, optionsTable, defaultChoice, onSelectCallback)
+local function createGridSelector(title, optionsList, defaultSelection, onSelect)
     local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(1, 0, 0, 75)
+    Container.Size = UDim2.new(1, 0, 0, 80)
     Container.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
     Container.BorderSizePixel = 0
     Container.Parent = ScrollContainer
@@ -188,7 +207,7 @@ local function createOptionSelector(title, optionsTable, defaultChoice, onSelect
 
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(1, -20, 0, 20)
-    Label.Position = UDim2.new(0, 12, 0, 10)
+    Label.Position = UDim2.new(0, 12, 0, 8)
     Label.BackgroundTransparency = 1
     Label.Text = title
     Label.TextColor3 = Color3.fromRGB(230, 230, 245)
@@ -197,28 +216,25 @@ local function createOptionSelector(title, optionsTable, defaultChoice, onSelect
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Container
 
-    -- ปุ่มเลือก Option
     local ButtonFrame = Instance.new("Frame")
-    ButtonFrame.Size = UDim2.new(1, -24, 0, 32)
-    ButtonFrame.Position = UDim2.new(0, 12, 0, 35)
+    ButtonFrame.Size = UDim2.new(1, -24, 0, 36)
+    ButtonFrame.Position = UDim2.new(0, 12, 0, 34)
     ButtonFrame.BackgroundTransparency = 1
     ButtonFrame.Parent = Container
 
-    local ButtonLayout = Instance.new("UIListLayout")
-    ButtonLayout.Parent = ButtonFrame
-    ButtonLayout.FillDirection = Enum.FillDirection.Horizontal
-    ButtonLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    ButtonLayout.Padding = UDim.new(0, 8)
+    local GridLayout = Instance.new("UIGridLayout")
+    GridLayout.Parent = ButtonFrame
+    GridLayout.CellSize = UDim2.new(1 / #optionsList, -6, 1, 0)
+    GridLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 
-    local currentSelection = defaultChoice
+    local activeChoice = defaultSelection
 
-    for _, optionName in ipairs(optionsTable) do
+    for _, optionName in ipairs(optionsList) do
         local OptBtn = Instance.new("TextButton")
-        OptBtn.Size = UDim2.new(1 / #optionsTable, -6, 1, 0)
-        OptBtn.BackgroundColor3 = (optionName == currentSelection) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
+        OptBtn.BackgroundColor3 = (optionName == activeChoice) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
         OptBtn.Text = optionName
         OptBtn.TextColor3 = Color3.fromRGB(240, 240, 255)
-        OptBtn.TextSize = 11
+        OptBtn.TextSize = 10
         OptBtn.Font = Enum.Font.GothamMedium
         OptBtn.Parent = ButtonFrame
 
@@ -227,27 +243,26 @@ local function createOptionSelector(title, optionsTable, defaultChoice, onSelect
         OptCorner.Parent = OptBtn
 
         OptBtn.MouseButton1Click:Connect(function()
-            currentSelection = optionName
+            activeChoice = optionName
             for _, btn in ipairs(ButtonFrame:GetChildren()) do
                 if btn:IsA("TextButton") then
-                    btn.BackgroundColor3 = (btn.Text == currentSelection) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
+                    btn.BackgroundColor3 = (btn.Text == activeChoice) and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(40, 40, 52)
                 end
             end
-            if onSelectCallback then
-                onSelectCallback(currentSelection)
+            if onSelect then
+                onSelect(activeChoice)
             end
         end)
     end
 end
 
 -- =============================================================================
--- [8] ฟังก์ชันสร้าง Toggle Card (เปิด/ปิด ออโต้)
+-- [8] ฟังก์ชันสร้าง Toggle Card (เปิด/ปิด ระบบออโต้)
 -- =============================================================================
 
-local function createToggleCard(title, subtitle, stateKey, callback)
+local function createToggleCard(title, subtitle, stateKey)
     local Card = Instance.new("Frame")
-    Card.Name = title .. "_Card"
-    Card.Size = UDim2.new(1, 0, 0, 60)
+    Card.Size = UDim2.new(1, 0, 0, 56)
     Card.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
     Card.BorderSizePixel = 0
     Card.Parent = ScrollContainer
@@ -263,7 +278,7 @@ local function createToggleCard(title, subtitle, stateKey, callback)
 
     local CardTitle = Instance.new("TextLabel")
     CardTitle.Size = UDim2.new(0.7, 0, 0, 18)
-    CardTitle.Position = UDim2.new(0, 12, 0, 10)
+    CardTitle.Position = UDim2.new(0, 12, 0, 8)
     CardTitle.BackgroundTransparency = 1
     CardTitle.Text = title
     CardTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
@@ -274,7 +289,7 @@ local function createToggleCard(title, subtitle, stateKey, callback)
 
     local CardSub = Instance.new("TextLabel")
     CardSub.Size = UDim2.new(0.7, 0, 0, 14)
-    CardSub.Position = UDim2.new(0, 12, 0, 32)
+    CardSub.Position = UDim2.new(0, 12, 0, 28)
     CardSub.BackgroundTransparency = 1
     CardSub.Text = subtitle
     CardSub.TextColor3 = Color3.fromRGB(130, 130, 155)
@@ -321,84 +336,70 @@ local function createToggleCard(title, subtitle, stateKey, callback)
 
         TweenService:Create(SwitchPill, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {BackgroundColor3 = targetPillColor}):Play()
         TweenService:Create(Knob, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Position = targetKnobPos, BackgroundColor3 = targetKnobColor}):Play()
-
-        if callback then
-            callback(isON)
-        end
     end)
 end
 
 -- =============================================================================
--- [9] สร้างการตั้งค่าตัวเลือก (Select Banner & Select Stage)
+-- [9] สร้างหน้าต่างเมนูแยกตามหมวดหมู่ (Sections)
 -- =============================================================================
 
--- ตัวเลือก Banner สุ่มยูนิต
-createOptionSelector("🎯 เลือก Banner สำหรับสุ่ม:", {"Banner 1", "Banner 2", "Wish"}, "Banner 1", function(selected)
+-- หมวดหมู่ที่ 1: เลือกแมพ/ด่าน
+createSectionHeader("🗺️ MAP & WORLD SELECTION")
+createGridSelector("ระบุแมพที่ต้องการจะไป / เล่น:", AvailableWorlds, SystemState.SelectedWorld, function(selected)
+    SystemState.SelectedWorld = selected
+    print("[User Choice]: เลือกแมพ -> ", selected)
+end)
+
+-- หมวดหมู่ที่ 2: เลือกตู้สุ่ม
+createSectionHeader("🎯 SUMMON & BANNER SELECTION")
+createGridSelector("ระบุตู้สุ่มที่ต้องการสุ่ม:", AvailableBanners, SystemState.SelectedBanner, function(selected)
     SystemState.SelectedBanner = selected
-    print("เลือก Banner: ", selected)
+    print("[User Choice]: เลือกตู้สุ่ม -> ", selected)
 end)
 
--- ตัวเลือก ด่าน / Map
-createOptionSelector("🗺️ เลือกด่าน / โหมด:", {"Stage 1", "Stage 2", "Infinite"}, "Stage 1", function(selected)
-    SystemState.SelectedStage = selected
-    print("เลือกด่าน: ", selected)
-end)
+-- หมวดหมู่ที่ 3: สวิตช์การทำงานอัตโนมัติ
+createSectionHeader("⚡ AUTOMATION CONTROLS")
+createToggleCard("Auto Teleport / Join", "วาร์ปเข้าแมพตามที่ระบุไว้ด้านบน", "AutoReplay")
+createToggleCard("Auto Summon Units", "สุ่มยูนิตตามตู้ที่ระบุไว้ด้านบน", "AutoSummon")
+createToggleCard("Auto Farm Stage", "วางยูนิตและต่อสู้ในด่านให้อัตโนมัติ", "AutoFarm")
 
 -- =============================================================================
--- [10] สร้างรายการเมนูสวิตช์เปิด/ปิด (Auto Farm / Auto Buy / Auto Replay)
--- =============================================================================
-
-createToggleCard("Auto Farm Units", "ระบบวางยูนิตต่อสู้ให้อัตโนมัติ", "AutoFarm", function(isOn)
-    print("Auto Farm: ", isOn)
-end)
-
-createToggleCard("Auto Summon / Buy", "สุ่มยูนิตตาม Banner ที่เลือกด้านบน", "AutoSummon", function(isOn)
-    print("Auto Summon: ", isOn, " | Target Banner: ", SystemState.SelectedBanner)
-end)
-
-createToggleCard("Auto Replay / Join Stage", "เริ่มเล่นด่านตาม Stage ที่เลือกด้านบน", "AutoReplay", function(isOn)
-    print("Auto Replay: ", isOn, " | Target Stage: ", SystemState.SelectedStage)
-end)
-
--- =============================================================================
--- [11] ลูปประมวลผลพร้อมส่งพารามิเตอร์ (Dynamic Argument Loop)
+-- [10] ลูปส่งสัญญาณตามค่าที่ผู้เล่นเลือกเจาะจง (Explicit Argument Loop)
 -- =============================================================================
 
 task.spawn(function()
     while true do
         task.wait(1.5)
 
-        -- 1. Auto Farm
-        if SystemState.AutoFarm then
+        -- 1. สั่งวาร์ปเข้าแมพตามที่ผู้เล่นเลือกบนเมนู
+        if SystemState.AutoReplay then
             pcall(function()
-                if Remotes.PlaceUnit then
-                    Remotes.PlaceUnit:FireServer(SystemState.SelectedStage)
+                if Remotes.Teleport then
+                    Remotes.Teleport:FireServer(SystemState.SelectedWorld)
+                    print("[RemoteEvent]: Teleporting player to -> ", SystemState.SelectedWorld)
                 end
             end)
         end
 
-        -- 2. Auto Summon (ส่งชื่อ Banner ที่เลือกไปด้วย!)
+        -- 2. สั่งสุ่มยูนิตตามตู้ที่ผู้เล่นเลือกบนเมนู
         if SystemState.AutoSummon then
             pcall(function()
                 if Remotes.Summon then
-                    -- ส่งคำสั่งสุ่มยูนิต พร้อมแนบชื่อ Banner ที่ผู้เล่นเลือกจากเมนู!
-                    Remotes.Summon:FireServer(SystemState.SelectedBanner, 10)
-                    print("[RemoteEvent]: Summoning from ", SystemState.SelectedBanner)
+                    Remotes.Summon:FireServer(SystemState.SelectedBanner, SystemState.SummonAmount)
+                    print("[RemoteEvent]: Summoning 10x from -> ", SystemState.SelectedBanner)
                 end
             end)
         end
 
-        -- 3. Auto Replay (ส่งชื่อ ด่าน/Stage ที่เลือกไปด้วย!)
-        if SystemState.AutoReplay then
+        -- 3. ออโต้ฟาร์ม
+        if SystemState.AutoFarm then
             pcall(function()
-                if Remotes.Replay then
-                    -- ส่งคำสั่งเข้าด่าน พร้อมแนบชื่อ ด่าน ที่ผู้เล่นเลือกจากเมนู!
-                    Remotes.Replay:FireServer(SystemState.SelectedStage)
-                    print("[RemoteEvent]: Joining Stage ", SystemState.SelectedStage)
+                if Remotes.PlaceUnit then
+                    Remotes.PlaceUnit:FireServer(SystemState.SelectedWorld)
                 end
             end)
         end
     end
 end)
 
-print("Anime Defenders Multi-Option UI Loaded Successfully!")
+print("Anime Defenders Explicit Selection UI Loaded!")
